@@ -4,6 +4,7 @@ from env import BalancingCartEnv
 from dqn_agent import DQNAgent
 import time
 import os
+from configs import HIDDEN_SIZE
 
 def plot_training_results(rewards, losses, lengths, window=100):
     plt.figure(figsize=(15, 5))
@@ -90,10 +91,11 @@ if __name__ == '__main__':
                     memory_size=100000,
                     epsilon_start=1.0,
                     epsilon_end=0.01,
-                    epsilon_decay=0.995)
+                    epsilon_decay=0.995,
+                    hidden_size=HIDDEN_SIZE)
 
     # Load previous model if exists
-    model_path = 'dqn_balancing_cart.pth'
+    model_path = '/Users/jinyue/8RL/zrz/3/dqn_balancing_cart.pth'
     agent.load(model_path)
     needtrain = not os.path.exists(model_path)
     if needtrain:

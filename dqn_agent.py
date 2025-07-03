@@ -7,11 +7,12 @@ from collections import deque
 import os
 
 class DQN(nn.Module):
-    def __init__(self, state_dim, action_dim):
+    def __init__(self, state_dim, action_dim, hidden_size=256):
         super(DQN, self).__init__()
-        self.fc1 = nn.Linear(state_dim, 256)
-        self.fc2 = nn.Linear(256, 256)
-        self.fc3 = nn.Linear(256, action_dim)
+        self.fc1 = nn.Linear(state_dim, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, hidden_size)
+        self.fc3 = nn.Linear(hidden_size, action_dim)
+        self.hidden_size = hidden_size
         
     def forward(self, x):
         x = torch.relu(self.fc1(x))
@@ -21,14 +22,15 @@ class DQN(nn.Module):
 class DQNAgent:
     def __init__(self, env, gamma=0.99, lr=1e-4, batch_size=64, 
                  memory_size=100000, epsilon_start=1.0, 
-                 epsilon_end=0.01, epsilon_decay=0.995):
+                 epsilon_end=0.01, epsilon_decay=0.995, hidden_size=256):
         self.env = env
         self.state_dim = env.observation_space.shape[0]
         self.action_dim = 25  # 保持与之前相同的离散动作空间
+        self.hidden_size = hidden_size
         
         # 网络
-        self.policy_net = DQN(self.state_dim, self.action_dim)
-        self.target_net = DQN(self.state_dim, self.action_dim)
+        self.policy_net = DQN(self.state_dim, self.action_dim, hidden_size)
+        self.target_net = DQN(self.state_dim, self.action_dim, hidden_size)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
         
@@ -112,7 +114,7 @@ class DQNAgent:
     
     def load(self, filename):
         if os.path.exists(filename):
-            checkpoint = torch.load(filename)
+            checkpoint = torch.load(filename, map_location=torch.device('cpu'))
             self.policy_net.load_state_dict(checkpoint['policy_net_state_dict'])
             self.target_net.load_state_dict(checkpoint['target_net_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
