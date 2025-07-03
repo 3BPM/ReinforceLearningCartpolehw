@@ -7,26 +7,13 @@ import random
 from collections import deque
 import os
 
-# class DQN(nn.Module):
-#     def __init__(self, state_dim, action_dim):
-#         super(DQN, self).__init__()
-#         # 选项1: 当前结构 (128-128)
-#         self.fc1 = nn.Linear(state_dim, 128)
-#         self.fc2 = nn.Linear(128, 128)
-#         self.fc3 = nn.Linear(128, action_dim)
 class DQN(nn.Module):
     def __init__(self, state_dim, action_dim):
         super(DQN, self).__init__()
-        # 选项1: 原始结构 (128-128) - 已被替换
-        # self.fc1 = nn.Linear(state_dim, 128)
-        # self.fc2 = nn.Linear(128, 128)
-        # self.fc3 = nn.Linear(128, action_dim)
-
-        # 新结构: 32x32
-        self.fc1 = nn.Linear(state_dim, 32)
-        self.fc2 = nn.Linear(32, 32)
-        self.fc3 = nn.Linear(32, action_dim)
-        # ...
+        # 选项1: 当前结构 (128-128)
+        self.fc1 = nn.Linear(state_dim, 128)
+        self.fc2 = nn.Linear(128, 128)
+        self.fc3 = nn.Linear(128, action_dim)
 
         # 选项2: 更小/更简单的网络 (有时对于这类问题效果不错或更容易训练)
         # self.fc1 = nn.Linear(state_dim, 64)
@@ -188,7 +175,7 @@ class DQNAgent:
             else: # 如果没有保存，则从policy_net复制
                 self.target_net.load_state_dict(self.policy_net.state_dict())
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.epsilon = checkpoint.get('epsilon',    0.1) #如果模型中没存epsilon，用默认值
+            self.epsilon = checkpoint.get('epsilon', self.epsilon_start) # 如果模型中没存epsilon，用默认值
             self.policy_net.train() # 确保policy_net处于训练模式
             self.target_net.eval()  # 确保target_net处于评估模式
             print(f"Model loaded from {filepath}")
