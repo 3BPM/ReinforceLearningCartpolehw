@@ -48,9 +48,9 @@ def plot_training_results(rewards, losses, lengths, window=100):
 
 def test_agent(env, agent, num_episodes=5):
     print("\nTesting trained agent...")
-    # agent.epsilon = 0  # Pure exploitation
+    agent.epsilon = 0  # Pure exploitation
     # 在test_agent中保留少量探索
-    agent.epsilon = 0.05  # 而不是0
+    # agent.epsilon = 0.05  # 而不是0
 
     for ep in range(num_episodes):
         state, _ = env.reset()
@@ -71,21 +71,30 @@ def test_agent(env, agent, num_episodes=5):
 if __name__ == '__main__':
     # Training configuration
     train_render_mode = None  # Set to 'human' for visualization (slower)
-    num_training_episodes = 1000
+    num_training_episodes = 100000
     target_update_freq = 10  # Update target network every 10 episodes
     save_freq = 100  # Save model every 100 episodes
 
     # Create environment and agent
     env = BalancingCartEnv(render_mode=train_render_mode)
+    # agent = DQNAgent(env,
+    #                 gamma=0.99,
+    #                 lr=1e-4,
+    #                 batch_size=64,
+    #                 memory_size=100000,
+    #                 epsilon_start=1.0,
+    #                 epsilon_end=0.01,
+    #                 epsilon_decay=0.995)
     agent = DQNAgent(env,
-                    gamma=0.99,
-                    lr=1e-4,
-                    batch_size=64,
-                    memory_size=100000,
-                    epsilon_start=1.0,
-                    epsilon_end=0.01,
-                    epsilon_decay=0.995)
-
+                 gamma=0.99,
+                 lr=1e-4,          # 尝试不同的值
+                 batch_size=64,    # 尝试不同的值
+                 memory_size=100000,
+                 epsilon_start=1.0,
+                 epsilon_end=0.01, # 尝试不同的值
+                 epsilon_decay=0.995, # 尝试不同的值
+                 # target_update_freq 参数是在训练脚本中使用的，这里不需要传给 DQNAgent
+                 )
     # Load previous model if exists
     model_path = 'dqn_balancing_cart.pth'
     agent.load(model_path)
