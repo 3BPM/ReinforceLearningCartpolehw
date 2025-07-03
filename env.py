@@ -116,54 +116,17 @@ class BalancingCartEnv(gym.Env):
             abs(theta_2) > self.theta2_limit
         )
 
-        # 在BalancingCartEnv.step()中调整奖励权重
-        reward = 0.0 # 先设为0，所有奖励和惩罚都是相对的
-        if not terminated:
-            # 摆杆姿态奖励 (非常重要)
-            # cos(theta_2) 在 theta_2 = 0 时为 1，角度越大奖励越小甚至为负
-            # 或者使用 exp 形式，更集中在 0 附近
-            pendulum_angle_reward = 2.0 * np.exp(-30 * self.state[3]**2) # theta_2 is state[3]
-            reward += pendulum_angle_reward
-
-            # 车体姿态惩罚
-            body_angle_penalty = 1.0 * (self.state[2]**2) # theta_1 is state[2]
-            reward -= body_angle_penalty
-
-            # 角速度惩罚 (鼓励平稳)
-            pendulum_velocity_penalty = 0.05 * (self.state[7]**2) # dot_theta_2
-            body_velocity_penalty = 0.02 * (self.state[6]**2)    # dot_theta_1
-            reward -= (pendulum_velocity_penalty + body_velocity_penalty)
-
-            # 动作惩罚 (鼓励节能和平滑动作)
-            action_penalty = 0.001 * (action[0]**2 + action[1]**2)
-            reward -= action_penalty
-
-            # 持续生存奖励 (每一步都给一点)
-            reward += 0.1 # 较小的持续奖励
-        else:
-            reward = -100.0 # 严厉的失败惩罚
-        # reward = 1.0  # 生存奖励
-        # if not terminated:
-        #     angle_penalty = 0.1*(theta_1**2) + 1.0*(theta_2**2)  # 减小权重
-        #     velocity_penalty = 0.0005 * (dot_theta_1**2 + dot_theta_2**2)
-        #     action_penalty = 0.00005 * (action[0]**2 + action[1]**2)
-        #     upright_reward = 1.0 * np.exp(-10 * theta_2**2)  # 增加直立奖励
-            
-        #     reward += upright_reward - (angle_penalty + velocity_penalty + action_penalty)
-        # else:
-        #     reward = -10.0  # 减小失败惩罚
-
         # Reward function (改进版)
-        # reward = 1.0  # Survival bonus
-        # if not terminated:
-        #     angle_penalty = 0.5*(theta_1**2) + 5*(theta_2**2)
-        #     velocity_penalty = 0.001 * (dot_theta_1**2 + dot_theta_2**2)
-        #     action_penalty = 0.0001 * (action[0]**2 + action[1]**2)
-        #     upright_reward = 0.5 * np.exp(-20 * theta_2**2)
+        reward = 1.0  # Survival bonus
+        if not terminated:
+            angle_penalty = 0.5*(theta_1**2) + 5*(theta_2**2)
+            velocity_penalty = 0.001 * (dot_theta_1**2 + dot_theta_2**2)
+            action_penalty = 0.0001 * (action[0]**2 + action[1]**2)
+            upright_reward = 0.5 * np.exp(-20 * theta_2**2)
             
-        #     reward += upright_reward - (angle_penalty + velocity_penalty + action_penalty)
-        # else:
-        #     reward = -100.0  # Failure penalty
+            reward += upright_reward - (angle_penalty + velocity_penalty + action_penalty)
+        else:
+            reward = -100.0  # Failure penalty
 
         self.current_step += 1
         truncated = self.current_step >= self.max_episode_steps

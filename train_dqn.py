@@ -49,8 +49,6 @@ def plot_training_results(rewards, losses, lengths, window=100):
 def test_agent(env, agent, num_episodes=5):
     print("\nTesting trained agent...")
     agent.epsilon = 0  # Pure exploitation
-    # 在test_agent中保留少量探索
-    # agent.epsilon = 0.05  # 而不是0
 
     for ep in range(num_episodes):
         state, _ = env.reset()
@@ -86,15 +84,14 @@ if __name__ == '__main__':
     #                 epsilon_end=0.01,
     #                 epsilon_decay=0.995)
     agent = DQNAgent(env,
-                 gamma=0.99,
-                 lr=1e-4,          # 尝试不同的值
-                 batch_size=64,    # 尝试不同的值
-                 memory_size=100000,
-                 epsilon_start=1.0,
-                 epsilon_end=0.01, # 尝试不同的值
-                 epsilon_decay=0.995, # 尝试不同的值
-                 # target_update_freq 参数是在训练脚本中使用的，这里不需要传给 DQNAgent
-                 )
+                    gamma=0.99,
+                    lr=1e-4,
+                    batch_size=64,
+                    memory_size=100000,
+                    epsilon_start=1.0,
+                    epsilon_end=0.01,
+                    epsilon_decay=0.995)
+
     # Load previous model if exists
     model_path = 'dqn_balancing_cart.pth'
     agent.load(model_path)
