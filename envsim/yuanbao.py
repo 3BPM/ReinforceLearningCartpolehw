@@ -2,6 +2,7 @@ import numpy as np
 import pygame
 import sys
 from numpy.linalg import inv
+import control as ct
 
 # 初始化Pygame
 pygame.init()
@@ -9,7 +10,7 @@ pygame.init()
 # 屏幕尺寸
 width, height = 1000, 700
 screen = pygame.display.set_mode((width, height))
-pygame.display.set_caption("Cart-Pendulum System Simulation")
+pygame.display.set_caption("Cart-Pendulum System Simulation (State Space)")
 
 # 颜色定义
 WHITE = (255, 255, 255)
@@ -17,6 +18,7 @@ BLACK = (0, 0, 0)
 RED = (255, 0, 0)
 BLUE = (0, 0, 255)
 GRAY = (200, 200, 200)
+GREEN = (0, 255, 0)
 
 # ==================== 物理参数定义 ====================
 m_1 = 0.9      # 车体的质量(kg)
@@ -71,6 +73,9 @@ C = np.hstack([np.eye(4), np.zeros((4,4))])
 
 # 构建D矩阵 (4x2前馈矩阵)
 D = np.zeros((4,2))
+
+# 使用control库创建状态空间系统
+sys_ss = ct.ss(A, B, C, D)
 
 # ==================== 模拟参数 ====================
 dt = 0.01      # 时间步长(s)
@@ -140,7 +145,8 @@ def draw_system(state):
         f"θ₁ (车体角度): {state[2,0]:.2f} rad",
         f"θ₂ (摆杆角度): {state[3,0]:.2f} rad",
         f"θ̇₁ (车体角速度): {state[6,0]:.2f} rad/s",
-        f"θ̇₂ (摆杆角速度): {state[7,0]:.2f} rad/s"
+        f"θ̇₂ (摆杆角速度): {state[7,0]:.2f} rad/s",
+        f"系统类型: {sys_ss.__class__.__name__}"
     ]
 
     for i, text in enumerate(info_text):
@@ -151,12 +157,22 @@ def draw_system(state):
 clock = pygame.time.Clock()
 running = True
 step = 0
+paused = False
+sim_speed = 1.0  # 模拟速度因子
 
 while running and step < num_steps:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                paused = not paused  # 空格键切换暂停/继续
+            elif event.key == pygame.K_UP:
+                sim_speed = min(sim_speed + 0.5, 5.0)  # 增加模拟速度
+            elif event.key == pygame.K_DOWN:
+                sim_speed = max(sim_speed - 0.5, 0.1)  # 减少模拟速度
 
+    if not paused:
     # 简单控制输入 (示例: 按键控制)
     keys = pygame.key.get_pressed()
     u = np.array([[0.0], [0.0]])  # 重置控制输入
@@ -168,7 +184,8 @@ while running and step < num_steps:
 
     # 状态更新
     x_dot = A @ x + B @ u
-    x = x + x_dot * dt
+        x = x + x_dot * dt * sim_speed
+        step += 1
 
     # 清屏
     screen.fill(WHITE)
@@ -177,15 +194,23 @@ while running and step < num_steps:
     draw_system(x)
 
     # 显示控制信息
-    control_text = font.render("使用左右方向键施加扭矩", True, BLACK)
-    screen.blit(control_text, (width - 200, 20))
+    control_text = [
+        "使用左右方向键施加扭矩",
+        "空格键: 暂停/继续",
+        f"模拟速度: {sim_speed:.1f}x (上下方向键调整)",
+        "暂停中..." if paused else "运行中",
+        f"使用 control.ss 创建的状态空间系统"
+    ]
+
+    for i, text in enumerate(control_text):
+        text_surface = font.render(text, True, GREEN if i == 3 else BLACK)
+        screen.blit(text_surface, (width - 300, 20 + i * 25))
 
     # 更新屏幕
     pygame.display.flip()
 
     # 控制帧率
     clock.tick(60)
-    step += 1
 
 pygame.quit()
 sys.exit()

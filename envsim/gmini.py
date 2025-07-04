@@ -2,50 +2,32 @@ import numpy as np
 from numpy.linalg import inv
 import pygame
 import math
-# 需要 scipy 来计算LQR控制器
 from scipy.linalg import solve_continuous_are
 
-# ==================== 物理参数定义 ====================
-# (和你的代码完全一样)
-m_1 = 0.9      # 车体的质量 (kg)
-m_2 = 0.1      # 摆杆的质量 (kg)
-r = 0.0335     # 车轮的半径 (m)
-L_1 = 0.126    # 车体的长度 (m)
-L_2 = 0.390    # 摆杆的长度 (m)
-l_1 = L_1 / 2  # 车体质心到转轴的距离
-l_2 = L_2 / 2  # 摆杆质心到转轴的距离
+# ==================== 物理参数定义 (简化模型) ====================
+m_car = 0.9      # 车体的质量 (kg)
+m_pole = 0.1     # 摆杆的质量 (kg)
+r_wheel = 0.0335 # 车轮的半径 (m) (用于可视化)
+L_pole = 0.390   # 摆杆的长度 (m)
+l_pole = L_pole / 2 # 摆杆质心到转轴的距离
 g = 9.8        # 重力加速度 (m/s^2)
-I_1 = (1/12) * m_1 * L_1**2  # 车体转动惯量
-I_2 = (1/12) * m_2 * L_2**2  # 摆杆转动惯量
+I_pole = (1/12) * m_pole * L_pole**2  # 摆杆转动惯量
 
-# ==================== 系统建模 ====================
-# 修正后的p, q矩阵 (原矩阵有误，这是根据标准两轮倒立摆动力学方程修正的)
-# 这一步非常复杂，涉及到拉格朗日方程或牛顿-欧拉方程的推导
-# 我们直接使用一个比较常见的、经过验证的模型形式
-M_t = m_1 + 2*m_2 # 总质量近似
-J_t = I_1 + m_1*l_1**2 + 2*m_2*L_1**2 # 总转动惯量近似
+# ==================== 状态空间模型 (标准倒立摆线性化模型) ====================
+# 状态向量 x = [pos, angle, pos_dot, angle_dot]ᵀ
+# pos: 车体水平位置, angle: 摆杆角度(偏离垂直)
+M = m_car + m_pole
+m = m_pole
+L = l_pole
+I = I_pole
 
-# 这里使用一个更标准和简化的模型来保证稳定性，因为原始的p,q矩阵推导非常复杂且容易出错
-# 简化模型：将两个轮子看作一个整体，车体和摆杆为倒立摆
-M = m_1 + m_2  # 总质量
-L = l_2        # 摆杆有效长度
-I = I_2        # 摆杆转动惯量
-m = m_1        # 车体质量
-
-# 状态向量简化为 x = [pos, angle, pos_dot, angle_dot]
-# pos: 车体水平位置, angle: 摆杆角度
-# 这是标准的倒立摆模型，更容易理解和可视化
-# 状态方程 ẋ = Ax + Bu
-#       y = Cx + Du
-# pos_ddot = ( F - m*L*angle_dot^2*sin(angle) + m*g*sin(angle)*cos(angle) ) / ( M - m*L^2*cos(angle)^2 )
-# angle_ddot = ( g*sin(angle) - pos_ddot*cos(angle) ) / L
-# 在平衡点(angle=0)附近线性化: sin(θ)≈θ, cos(θ)≈1, θ̇^2≈0
-denom = I*(M+m) + M*m*L**2
+# 在平衡点(angle=0)附近线性化后的A, B矩阵
+denom = I * (M) + m * M * L**2
 A = np.array([
     [0, 0, 1, 0],
     [0, 0, 0, 1],
     [0, (m**2 * L**2 * g) / denom, 0, 0],
-    [0, (m * g * L * (M+m)) / denom, 0, 0]
+    [0, (m * g * L * M) / denom, 0, 0]
 ])
 
 B = np.array([
@@ -55,22 +37,14 @@ B = np.array([
     [(m*L)/denom]
 ])
 
-# 输出我们关心的所有状态
-C = np.eye(4)
-D = np.zeros((4,1))
-
 # ==================== LQR控制器设计 ====================
-# LQR代价矩阵
-# Q矩阵：惩罚状态偏差。我们非常不希望杆倒下(angle)，也不希望车乱跑(pos)
-# 对角线元素分别对应 [pos, angle, pos_dot, angle_dot] 的惩罚权重
-Q = np.diag([1.0, 100.0, 1.0, 1.0])
-
-# R矩阵：惩罚控制输入。R越大，意味着我们希望用更小的力去控制，更节能
+# Q矩阵: 惩罚状态偏差。我们非常不希望杆倒下(angle)，也不希望车乱跑(pos)
+Q = np.diag([1.0, 100.0, 1.0, 1.0]) # [pos, angle, pos_dot, angle_dot]
+# R矩阵: 惩罚控制输入。R越大，意味着我们希望用更小的力去控制，更节能
 R = np.array([[0.1]])
 
 # 求解连续代数黎卡提方程 (CARE)
 P = solve_continuous_are(A, B, Q, R)
-
 # 计算LQR增益K
 K = inv(R) @ B.T @ P
 print("计算得到的LQR增益矩阵 K:", K)
@@ -80,96 +54,158 @@ print("计算得到的LQR增益矩阵 K:", K)
 
 # --- Pygame 设置 ---
 pygame.init()
-WIDTH, HEIGHT = 1000, 600
+WIDTH, HEIGHT = 1200, 700
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("LQR控制的自平衡小车")
+pygame.display.set_caption("LQR控制的自平衡小车 (空格:暂停, ↑/↓:速度, 滑块:施力)")
 clock = pygame.time.Clock()
+font = pygame.font.SysFont("SimHei", 24)
 
 # --- 颜色和参数 ---
-BLACK = (0, 0, 0)
-WHITE = (255, 255, 255)
-RED = (255, 0, 0)
-BLUE = (0, 0, 255)
-GREEN = (0, 255, 0)
+C_BLACK = (0, 0, 0)
+C_WHITE = (255, 255, 255)
+C_RED = (220, 50, 50)
+C_BLUE = (50, 100, 200)
+C_GREEN = (50, 200, 100)
+C_GREY = (200, 200, 200)
+C_DARK_GREY = (100, 100, 100)
 
-# 仿真参数
-SCALE = 200  # 缩放比例: 1米 = 200像素
+# --- 仿真控制参数 ---
+SCALE = 250      # 缩放比例: 1米 = 250像素
 FPS = 60
 dt = 1.0 / FPS
+is_paused = False
+speed_multiplier = 1.0
 
 # --- 初始状态 ---
 # x = [位置(m), 杆角度(rad), 速度(m/s), 杆角速度(rad/s)]
-# 让杆有一个小的初始倾角，看控制器如何把它扶正
-x = np.array([0, 0.2, 0, 0])
+x = np.array([0, 0.2, 0, 0]) # 初始给一个倾角
+
+# --- 滑块参数 ---
+slider_max_force = 30.0  # 牛顿
+manual_force = 0.0
+slider_rect = pygame.Rect(WIDTH // 4, HEIGHT - 50, WIDTH // 2, 20)
+handle_rect = pygame.Rect(slider_rect.centerx - 10, slider_rect.y - 5, 20, 30)
+is_dragging = False
 
 # --- 主循环 ---
 running = True
 while running:
+    # --- 1. 事件处理 (键盘和鼠标) ---
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        # 键盘事件
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                is_paused = not is_paused
+            elif event.key == pygame.K_UP or event.key == pygame.K_EQUALS:
+                speed_multiplier += 0.1
+            elif event.key == pygame.K_DOWN or event.key == pygame.K_MINUS:
+                speed_multiplier = max(0.1, speed_multiplier - 0.1)
+            elif event.key == pygame.K_r: # 按R重置
+                 x = np.array([0, 0.2, 0, 0])
+                 manual_force = 0.0
+                 handle_rect.centerx = slider_rect.centerx
+                 is_paused = False
 
-    # 1. 控制器计算
-    # u = -Kx 是核心！根据当前状态计算控制力
-    # 由于我们希望小车保持在原点(pos=0)和垂直(angle=0)，所以目标状态是[0,0,0,0]
-    # 偏差就是 x - x_target = x - 0 = x
-    u = -K @ x
-    # 对输入力矩进行限幅，防止力量过大
-    u_clamped = np.clip(u, -20.0, 20.0)
+        # 鼠标事件 (滑块)
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == 1 and handle_rect.collidepoint(event.pos):
+                is_dragging = True
+        if event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 1:
+                is_dragging = False
+        if event.type == pygame.MOUSEMOTION:
+            if is_dragging:
+                handle_rect.centerx = max(slider_rect.left, min(event.pos[0], slider_rect.right))
+                # 将滑块位置映射到力的大小
+                normalized_pos = (handle_rect.centerx - slider_rect.left) / slider_rect.width
+                manual_force = (normalized_pos - 0.5) * 2 * slider_max_force
 
-    # 2. 系统状态更新 (模拟物理世界)
-    # 使用状态空间方程计算状态的变化率
-    x_dot = A @ x + B @ u_clamped
-    # 用欧拉积分法更新状态
-    x = x + x_dot * dt
+    # --- 2. 仿真逻辑更新 (如果未暂停) ---
+    if not is_paused:
+        # LQR控制器计算基础控制力
+        u_lqr = -K @ x
 
-    # 3. 绘图
-    screen.fill(WHITE)
+        # 总控制力 = LQR力 + 手动施加的力 (作为外部扰动)
+        # 注意：在模型中，我们控制的是电机的力，这个力会作用于车体。
+        # 我们将手动施加的力也看作是作用于车体的合力的一部分。
+        total_force = u_lqr[0] + manual_force
+
+        # 对输入力矩进行限幅，防止力量过大
+        force_clamped = np.clip(np.array([[total_force]]), -50.0, 50.0)
+
+        # 使用状态空间方程计算状态的变化率
+        x_dot = A @ x + (B @ force_clamped).flatten()
+
+        # 用欧拉积分法更新状态，并考虑播放速度
+        effective_dt = dt * speed_multiplier
+        x = x + x_dot * effective_dt
+
+  # --- 3. 绘图 (无论是否暂停都执行) ---
+    screen.fill(C_WHITE)
 
     # 提取状态用于绘图
     cart_pos_m = x[0]
     pole_angle_rad = x[1]
 
     # --- 坐标转换 (从物理世界到屏幕) ---
-    # 地面
     ground_y = HEIGHT - 100
-    pygame.draw.line(screen, BLACK, (0, ground_y), (WIDTH, ground_y), 2)
+    pygame.draw.line(screen, C_BLACK, (0, ground_y), (WIDTH, ground_y), 3)
 
     # 车体
+    # 【【【 修改点 1：将浮点数坐标转换为整数 】】】
     cart_x_px = WIDTH / 2 + cart_pos_m * SCALE
     cart_y_px = ground_y
     cart_w, cart_h = 100, 40
-    pygame.draw.rect(screen, BLUE, (cart_x_px - cart_w/2, cart_y_px - cart_h, cart_w, cart_h))
+    # 使用 int() 来确保所有坐标都是整数
+    rect_to_draw = pygame.Rect(int(cart_x_px - cart_w/2), int(cart_y_px - cart_h), cart_w, cart_h)
+    pygame.draw.rect(screen, C_BLUE, rect_to_draw, border_radius=5)
 
     # 轮子
-    wheel_radius_px = r * SCALE
-    pygame.draw.circle(screen, BLACK, (int(cart_x_px - cart_w/2*0.7), int(cart_y_px - wheel_radius_px)), int(wheel_radius_px), 2)
-    pygame.draw.circle(screen, BLACK, (int(cart_x_px + cart_w/2*0.7), int(cart_y_px - wheel_radius_px)), int(wheel_radius_px), 2)
+    # 【【【 修改点 2：同样处理轮子坐标 】】】
+    wheel_radius_px = r_wheel * SCALE
+    pygame.draw.circle(screen, C_BLACK, (int(cart_x_px - cart_w/2*0.7), int(cart_y_px - wheel_radius_px)), int(wheel_radius_px))
+    pygame.draw.circle(screen, C_BLACK, (int(cart_x_px + cart_w/2*0.7), int(cart_y_px - wheel_radius_px)), int(wheel_radius_px))
 
     # 摆杆
-    pole_len_px = L_2 * SCALE
+    # 【【【 修改点 3：同样处理摆杆坐标 】】】
+    pole_len_px = L_pole * SCALE
     pole_base_x = cart_x_px
-    pole_base_y = cart_y_px - cart_h # 杆的底部在车体顶部
-    # 终点坐标计算
+    pole_base_y = cart_y_px - cart_h
     pole_end_x = pole_base_x + pole_len_px * math.sin(pole_angle_rad)
-    pole_end_y = pole_base_y - pole_len_px * math.cos(pole_angle_rad) # Pygame的y轴向下，所以是减
-    pygame.draw.line(screen, RED, (pole_base_x, pole_base_y), (pole_end_x, pole_end_y), 6)
+    pole_end_y = pole_base_y - pole_len_px * math.cos(pole_angle_rad)
+    # 将所有坐标转换为整数
+    pygame.draw.line(screen, C_RED, (int(pole_base_x), int(pole_base_y)), (int(pole_end_x), int(pole_end_y)), 8)
+    pygame.draw.circle(screen, C_RED, (int(pole_end_x), int(pole_end_y)), 5)
+    # 杆头小球
+    # --- 绘制滑块 ---
+    pygame.draw.rect(screen, C_GREY, slider_rect, border_radius=10)
+    pygame.draw.line(screen, C_DARK_GREY, (slider_rect.centerx, slider_rect.top), (slider_rect.centerx, slider_rect.bottom), 2)
+    pygame.draw.rect(screen, C_BLUE, handle_rect, border_radius=5)
 
     # --- 显示信息 ---
-    font = pygame.font.SysFont("SimHei", 24)
-    info_text_1 = f"车体位置: {x[0]:.2f} m | 摆杆角度: {math.degrees(x[1]):.2f} °"
-    info_text_2 = f"车体速度: {x[2]:.2f} m/s | 摆杆角速度: {math.degrees(x[3]):.2f} °/s"
-    info_text_3 = f"控制力: {u[0]:.2f} N"
+    info_texts = [
+        f"车体位置: {x[0]:.2f} m",
+        f"摆杆角度: {math.degrees(x[1]):.2f} °",
+        f"车体速度: {x[2]:.2f} m/s",
+        f"摆杆角速度: {math.degrees(x[3]):.2f} °/s",
+        f"LQR计算力: {(-K @ x)[0]:.2f} N",
+        f"手动施力: {manual_force:.2f} N",
+        f"仿真速度: {speed_multiplier:.1f}x (↑/↓)",
+        f"按'R'键重置",
+    ]
+    for i, text in enumerate(info_texts):
+        color = C_GREEN if "手动" in text else C_BLACK
+        text_surface = font.render(text, True, color)
+        screen.blit(text_surface, (15, 15 + i * 30))
 
-    text_surface_1 = font.render(info_text_1, True, BLACK)
-    text_surface_2 = font.render(info_text_2, True, BLACK)
-    text_surface_3 = font.render(info_text_3, True, GREEN)
+    if is_paused:
+        pause_font = pygame.font.SysFont("SimHei", 60)
+        pause_surface = pause_font.render("已暂停", True, C_DARK_GREY)
+        screen.blit(pause_surface, (WIDTH/2 - pause_surface.get_width()/2, HEIGHT/2 - 50))
 
-    screen.blit(text_surface_1, (10, 10))
-    screen.blit(text_surface_2, (10, 40))
-    screen.blit(text_surface_3, (10, 70))
-
-
+    # 刷新屏幕
     pygame.display.flip()
     clock.tick(FPS)
 
