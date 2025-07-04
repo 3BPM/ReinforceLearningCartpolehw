@@ -173,17 +173,17 @@ while running and step < num_steps:
                 sim_speed = max(sim_speed - 0.5, 0.1)  # 减少模拟速度
 
     if not paused:
-    # 简单控制输入 (示例: 按键控制)
-    keys = pygame.key.get_pressed()
-    u = np.array([[0.0], [0.0]])  # 重置控制输入
+        # 简单控制输入 (示例: 按键控制)
+        keys = pygame.key.get_pressed()
+        u = np.array([[0.0], [0.0]])  # 重置控制输入
 
-    if keys[pygame.K_LEFT]:
-        u[0,0] = -0.1  # 左轮扭矩
-    if keys[pygame.K_RIGHT]:
-        u[1,0] = 0.1   # 右轮扭矩
+        if keys[pygame.K_LEFT]:
+            u[0,0] = -0.1  # 左轮扭矩
+        if keys[pygame.K_RIGHT]:
+            u[1,0] = 0.1   # 右轮扭矩
 
     # 状态更新
-    x_dot = A @ x + B @ u
+        x_dot = A @ x + B @ u
         x = x + x_dot * dt * sim_speed
         step += 1
 
