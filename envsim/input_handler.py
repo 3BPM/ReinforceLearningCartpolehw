@@ -40,6 +40,24 @@ class InputHandler:
             elif event.key == pygame.K_r:
                 self.simulator.reset()
                 self.handle_rect.centerx = self.slider_rect.centerx
+            elif event.key == pygame.K_d:
+                # 切换数据记录
+                if self.simulator.is_recording:
+                    self.simulator.stop_recording()
+                    print("数据记录已停止")
+                else:
+                    self.simulator.start_recording()
+                    print("数据记录已开始")
+            elif event.key == pygame.K_a:
+                # 生成分析报告
+                if self.simulator.result_analyzer and self.simulator.result_analyzer.state_history:
+                    print("正在生成分析报告...")
+                    self.simulator.result_analyzer.generate_report("simulation_report.txt")
+                    self.simulator.result_analyzer.plot_detailed_response("response_analysis.png")
+                    self.simulator.result_analyzer.plot_phase_portrait("phase_portrait.png")
+                    print("分析报告已生成完成！")
+                else:
+                    print("没有可分析的数据，请先记录仿真数据")
 
     def _handle_mouse(self, event):
         """处理鼠标事件"""

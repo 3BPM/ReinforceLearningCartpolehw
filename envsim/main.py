@@ -3,19 +3,35 @@ from lqr_controller import LQRController
 from simulator import UnicycleSimulator
 from renderer import UnicycleRenderer
 from input_handler import InputHandler
+from result_analyzer import ResultAnalyzer
+from config import Config
 
 # ==================== 主程序 ====================
 def main():
     pygame.init()
-    screen = pygame.display.set_mode((1200, 700))
-    pygame.display.set_caption("独轮自平衡车 (按L切换开关LQR,按F切换是否应用手动施力, R:重置,  空格:暂停, ↑/↓:速度)")
+    screen = pygame.display.set_mode((Config.window_width, Config.window_height))
+    pygame.display.set_caption("独轮自平衡车LQR控制仿真 (按D开始记录数据,按A生成分析报告)")
     clock = pygame.time.Clock()
+    
+    # 创建结果分析器
+    result_analyzer = ResultAnalyzer()
     
     # 创建各个组件
     controller = LQRController()
-    simulator = UnicycleSimulator(controller)
+    simulator = UnicycleSimulator(controller, result_analyzer)
     renderer = UnicycleRenderer()
     input_handler = InputHandler(simulator, renderer)
+    
+    print("=== 独轮自平衡车LQR控制仿真 ===")
+    print("操作说明:")
+    print("- L: 切换LQR控制器")
+    print("- F: 切换手动施力")
+    print("- R: 重置仿真")
+    print("- 空格: 暂停/继续")
+    print("- ↑/↓: 调整仿真速度")
+    print("- D: 开始/停止数据记录")
+    print("- A: 生成分析报告")
+    print("================================")
     
     # 主循环
     running = True
@@ -33,7 +49,7 @@ def main():
         input_handler.draw_slider(screen)
         
         pygame.display.flip()
-        clock.tick(60)
+        clock.tick(Config.fps)
     
     pygame.quit()
 

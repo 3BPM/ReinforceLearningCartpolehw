@@ -4,11 +4,11 @@ from config import Config
 
 # ==================== 渲染器类 ====================
 class UnicycleRenderer:
-    def __init__(self, width=1200, height=700):
-        self.width = width
-        self.height = height
-        self.scale = 250
-        self.ground_y = height - 100
+    def __init__(self, width=None, height=None):
+        self.width = width or Config.window_width
+        self.height = height or Config.window_height
+        self.scale = Config.scale
+        self.ground_y = self.height - 100
         
         # 颜色定义
         self.colors = {
@@ -19,11 +19,14 @@ class UnicycleRenderer:
             'green': (50, 200, 100),
             'orange': (255, 140, 0),
             'grey': (200, 200, 200),
-            'dark_grey': (100, 100, 100)
+            'dark_grey': (100, 100, 100),
+            'yellow': (255, 255, 0),
+            'purple': (128, 0, 128)
         }
         
         # 字体
         self.font = pygame.font.SysFont(Config.font_name, 24)
+        self.small_font = pygame.font.SysFont(Config.font_name, 18)
         
         # 创建车体Surface
         self.cart_w, self.cart_h = 40, 200
@@ -119,6 +122,7 @@ class UnicycleRenderer:
         """绘制UI界面"""
         state = simulator.get_state()
         control_info = simulator.get_control_info()
+        sim_time = simulator.get_simulation_time()
         
         # 信息文本
         info_texts = [
@@ -128,11 +132,15 @@ class UnicycleRenderer:
             f"角速度: {math.degrees(state[3]):.2f} °/s",
             f"手动施力: {control_info['manual_force']:.2f} N",
             f"应用手动施力: {'是' if control_info['apply_manual_force'] else '否'} (按F切换)",
-            f"仿真速度: {simulator.speed_multiplier:.2f}x"
+            f"仿真速度: {simulator.speed_multiplier:.2f}x",
+            f"仿真时间: {sim_time:.2f}s"
         ]
 
         lqr_status_text = f"LQR控制器: {'开启' if control_info['is_lqr_active'] else '关闭'}"
         lqr_force_text = f"LQR计算力: {control_info['lqr_force']:.2f} N"
+        
+        # 记录状态
+        recording_text = f"数据记录: {'开启' if simulator.is_recording else '关闭'} (按D切换)"
 
         # 绘制信息文本
         for i, text in enumerate(info_texts):
@@ -147,8 +155,31 @@ class UnicycleRenderer:
         lqr_force_surface = self.font.render(lqr_force_text, True, 
                                            self.colors['blue'] if control_info['is_lqr_active'] else self.colors['grey'])
         screen.blit(lqr_force_surface, (15, 15 + (len(info_texts)+1) * 30))
+        
+        # 绘制记录状态
+        recording_color = self.colors['purple'] if simulator.is_recording else self.colors['grey']
+        recording_surface = self.small_font.render(recording_text, True, recording_color)
+        screen.blit(recording_surface, (15, 15 + (len(info_texts)+2) * 30))
 
         # 绘制暂停状态
         if is_paused:
             pause_surface = self.font.render("已暂停", True, self.colors['dark_grey'])
-            screen.blit(pause_surface, (self.width / 2 - pause_surface.get_width() / 2, self.height / 2 - 50)) 
+            screen.blit(pause_surface, (self.width / 2 - pause_surface.get_width() / 2, self.height / 2 - 50))
+            
+        # 绘制操作提示
+        help_texts = [
+            "操作说明:",
+            "L: 切换LQR控制器",
+            "F: 切换手动施力",
+            "R: 重置仿真",
+            "空格: 暂停/继续",
+            "↑/↓: 调整仿真速度",
+            "D: 开始/停止数据记录",
+            "A: 生成分析报告"
+        ]
+        
+        for i, text in enumerate(help_texts):
+            color = self.colors['dark_grey'] if i == 0 else self.colors['grey']
+            font = self.font if i == 0 else self.small_font
+            text_surface = font.render(text, True, color)
+            screen.blit(text_surface, (self.width - 200, 15 + i * 25)) 
