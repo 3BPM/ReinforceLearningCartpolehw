@@ -94,6 +94,11 @@ state  =  [ θL_dot]  (左轮角速度)
                 self.state,
                 force_clamped[0, 0]
             )
+        if self.state[2] < -np.pi or self.state[2] > np.pi or self.state[3] < -np.pi or self.state[3] > np.pi:
+            print("摆杆角度超出范围，仿真结束")
+            return True
+        else:
+            return False
 
     def get_state(self):
         """获取当前状态"""
