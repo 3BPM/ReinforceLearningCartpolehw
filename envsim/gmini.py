@@ -76,7 +76,7 @@ dt = 1.0 / FPS
 is_paused = False
 speed_multiplier = 1.0
 apply_manual_force = True  # 是否应用手动施力
-is_lqr_active = True       # 新增: LQR控制器是否激活
+is_lqr_active = True       # LQR控制器是否激活
 
 # --- 初始状态 ---
 # x = [位置(m), 杆角度(rad), 速度(m/s), 杆角速度(rad/s)]
@@ -163,22 +163,57 @@ while running:
     ground_y = HEIGHT - 100
     pygame.draw.line(screen, C_BLACK, (0, ground_y), (WIDTH, ground_y), 3)
 
-    # 车体
-    cart_x_px = WIDTH / 2 + cart_pos_m * SCALE
-    cart_y_px = ground_y
+    # 车体参数
     cart_w, cart_h = 100, 40
-    rect_to_draw = pygame.Rect(int(cart_x_px - cart_w/2), int(cart_y_px - cart_h), cart_w, cart_h)
-    pygame.draw.rect(screen, C_BLUE, rect_to_draw, border_radius=5)
-
-    # 轮子
     wheel_radius_px = r_wheel * SCALE
-    pygame.draw.circle(screen, C_BLACK, (int(cart_x_px - cart_w/2 * 0.7), int(cart_y_px - wheel_radius_px)), int(wheel_radius_px))
-    pygame.draw.circle(screen, C_BLACK, (int(cart_x_px + cart_w/2 * 0.7), int(cart_y_px - wheel_radius_px)), int(wheel_radius_px))
+
+    # 车体中心位置
+    cart_center_x = WIDTH / 2 + cart_pos_m * SCALE
+    cart_center_y = ground_y - wheel_radius_px
+
+    # 计算车体四个角的坐标（考虑倾斜）
+    angle = pole_angle_rad  # 使用摆杆角度作为车体倾斜角度
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+
+    # 定义车体四个角的相对坐标（未旋转时）
+    corners = [
+        (-cart_w/2, -cart_h/2),  # 左上
+        (cart_w/2, -cart_h/2),   # 右上
+        (cart_w/2, cart_h/2),    # 右下
+        (-cart_w/2, cart_h/2)     # 左下
+    ]
+
+    # 旋转并平移车体四个角
+    rotated_corners = []
+    for x_rel, y_rel in corners:
+        # 旋转
+        x_rot = x_rel * cos_a - y_rel * sin_a
+        y_rot = x_rel * sin_a + y_rel * cos_a
+        # 平移
+        x_abs = cart_center_x + x_rot
+        y_abs = cart_center_y + y_rot
+        rotated_corners.append((x_abs, y_abs))
+
+    # 绘制倾斜的车体
+    pygame.draw.polygon(screen, C_BLUE, rotated_corners)
+
+    # 轮子（也需要倾斜）
+    wheel_offset = cart_w/2 * 0.7  # 轮子距离中心的水平距离
+
+    # 左轮
+    left_wheel_x = cart_center_x - wheel_offset * cos_a
+    left_wheel_y = cart_center_y - wheel_offset * sin_a
+    pygame.draw.circle(screen, C_BLACK, (int(left_wheel_x), int(left_wheel_y)), int(wheel_radius_px))
+
+    # 右轮
+    right_wheel_x = cart_center_x + wheel_offset * cos_a
+    right_wheel_y = cart_center_y + wheel_offset * sin_a
+    pygame.draw.circle(screen, C_BLACK, (int(right_wheel_x), int(right_wheel_y)), int(wheel_radius_px))
 
     # 摆杆
     pole_len_px = L_pole * SCALE
-    pole_base_x = cart_x_px
-    pole_base_y = cart_y_px - cart_h
+    pole_base_x = cart_center_x
+    pole_base_y = cart_center_y - cart_h/2  # 从车体顶部中心开始
     pole_end_x = pole_base_x + pole_len_px * math.sin(pole_angle_rad)
     pole_end_y = pole_base_y - pole_len_px * math.cos(pole_angle_rad)
     pygame.draw.line(screen, C_RED, (int(pole_base_x), int(pole_base_y)), (int(pole_end_x), int(pole_end_y)), 8)
