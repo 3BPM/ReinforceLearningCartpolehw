@@ -3,6 +3,7 @@ import gymnasium as gym
 from gymnasium import spaces
 from scipy.signal import cont2discrete
 import pygame
+from envsim.renderer import UnicycleRenderer  # 导入渲染器
 
 class BalancingCartEnv(gym.Env):
     metadata = {
@@ -12,7 +13,7 @@ class BalancingCartEnv(gym.Env):
 
     def __init__(self, render_mode=None):
         super().__init__()
-        
+
         # Physical parameters
         self.m_1 = 0.9      # kg
         self.m_2 = 0.1      # kg
@@ -59,7 +60,7 @@ class BalancingCartEnv(gym.Env):
 
         # Discrete time system
         self.Ts = 0.005  # Sampling time
-        discrete_system = cont2discrete((self.A_c, self.B_c, np.eye(8), np.zeros((8, 2))), 
+        discrete_system = cont2discrete((self.A_c, self.B_c, np.eye(8), np.zeros((8, 2))),
                                        self.Ts, method='zoh')
         self.A_d = discrete_system[0]
         self.B_d = discrete_system[1]
@@ -95,17 +96,15 @@ class BalancingCartEnv(gym.Env):
         self.render_mode = render_mode
         if self.render_mode == "human":
             pygame.init()
-            self.screen = pygame.display.set_mode((800, 600))
-            pygame.display.set_caption("Balancing Cart")
-            self.clock = pygame.time.Clock()
-            self.font = pygame.font.Font(None, 24)
+            self.screen = pygame.display.set_mode((1200,800))
+            self.renderer = UnicycleRenderer()  # 初始化渲染器
         else:
-            self.screen = None
+            self.renderer = None
 
     def step(self, action):
         # Clip action
         action = np.clip(action, self.action_space.low, self.action_space.high)
-        
+
         # Dynamics update
         self.state = self.A_d @ self.state + self.B_d @ action
         theta_L, theta_R, theta_1, theta_2, dot_theta_L, dot_theta_R, dot_theta_1, dot_theta_2 = self.state
@@ -123,119 +122,57 @@ class BalancingCartEnv(gym.Env):
             velocity_penalty = 0.001 * (dot_theta_1**2 + dot_theta_2**2)
             action_penalty = 0.0001 * (action[0]**2 + action[1]**2)
             upright_reward = 0.5 * np.exp(-20 * theta_2**2)
-            
+
             reward += upright_reward - (angle_penalty + velocity_penalty + action_penalty)
         else:
             reward = -100.0  # Failure penalty
 
         self.current_step += 1
         truncated = self.current_step >= self.max_episode_steps
-        
+
         if self.render_mode == "human":
             self.render()
-            
+
         return self.state.astype(np.float32), reward, terminated, truncated, {}
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         initial_theta1 = self.np_random.uniform(low=-0.1, high=0.1)
         initial_theta2 = self.np_random.uniform(low=-0.1, high=0.1)
-        
+
         self.state = np.array([
             0.0, 0.0,
             initial_theta1, initial_theta2,
             0.0, 0.0, 0.0, 0.0
         ], dtype=np.float32)
-        
+
         self.current_step = 0
         if self.render_mode == "human":
             self.render()
         return self.state.astype(np.float32), {}
 
     def render(self):
-        if self.render_mode != "human" or self.state is None:
+        if self.render_mode != "human" or self.state is None or self.renderer is None:
             return
 
-        self.screen.fill((255, 255, 255))
+        # 使用渲染器进行渲染
         theta_L, theta_R, theta_1, theta_2, _, _, _, _ = self.state
-        
-        # World to screen scaling
-        world_width = 4.0
-        scale = self.screen.get_width() / world_width
-        cart_y_pos = self.screen.get_height() * 0.7
-        cart_x_world = self.r * (theta_L + theta_R) / 2.0
-        cart_x_screen = int(self.screen.get_width() / 2 + cart_x_world * scale)
-        
-        # Draw cart body
-        cart_width_pixels = int(0.2 * scale)
-        cart_height_pixels = int(0.1 * scale)
-        l, r_coord, t, b = -cart_width_pixels/2, cart_width_pixels/2, cart_height_pixels/2, -cart_height_pixels/2
-        cart_coords = [(l, b), (l, t), (r_coord, t), (r_coord, b)]
-        rotated_cart_coords = []
-        for x_rel, y_rel in cart_coords:
-            x_rot = x_rel * np.cos(theta_1) - y_rel * np.sin(theta_1)
-            y_rot = x_rel * np.sin(theta_1) + y_rel * np.cos(theta_1)
-            rotated_cart_coords.append((int(cart_x_screen + x_rot), int(cart_y_pos - y_rot)))
-        pygame.draw.polygon(self.screen, (0, 0, 0), rotated_cart_coords)
-        
-        # Draw wheels
-        # 修改wheel位置计算（约第290行）
-        wheel_radius_pixels = int(self.r * scale)
-        wheel_offset_x = cart_width_pixels / 2 - wheel_radius_pixels
+        self.renderer.render_cartpole(self.screen, self.state, theta_L, theta_R, theta_1, theta_2)
 
-        # 修正Y坐标计算（关键修改！）
-        w_rel_y = - (cart_height_pixels / 2 + wheel_radius_pixels)  # 负号表示下方
-
-        lw_rel_x = -wheel_offset_x
-        rw_rel_x = wheel_offset_x
-
-        # 保持旋转计算不变
-        lw_rot_x = lw_rel_x * np.cos(theta_1) - w_rel_y * np.sin(theta_1)
-        lw_rot_y = lw_rel_x * np.sin(theta_1) + w_rel_y * np.cos(theta_1)
-        rw_rot_x = rw_rel_x * np.cos(theta_1) - w_rel_y * np.sin(theta_1)
-        rw_rot_y = rw_rel_x * np.sin(theta_1) + w_rel_y * np.cos(theta_1)
-
-        # 更新绘制位置
-        left_wheel_pos = (int(cart_x_screen + lw_rot_x), int(cart_y_pos - lw_rot_y))
-        right_wheel_pos = (int(cart_x_screen + rw_rot_x), int(cart_y_pos - rw_rot_y))
-        # wheel_radius_pixels = int(self.r * scale)
-        # wheel_offset_x = cart_width_pixels / 2 - wheel_radius_pixels
-        
-        # lw_rel_x = -wheel_offset_x
-        # rw_rel_x = wheel_offset_x
-        # w_rel_y = cart_height_pixels / 2 + wheel_radius_pixels
-        
-        # lw_rot_x = lw_rel_x * np.cos(theta_1) - w_rel_y * np.sin(theta_1)
-        # lw_rot_y = lw_rel_x * np.sin(theta_1) + w_rel_y * np.cos(theta_1)
-        # rw_rot_x = rw_rel_x * np.cos(theta_1) - w_rel_y * np.sin(theta_1)
-        # rw_rot_y = rw_rel_x * np.sin(theta_1) + w_rel_y * np.cos(theta_1)
-
-        # left_wheel_pos = (int(cart_x_screen + lw_rot_x), int(cart_y_pos - lw_rot_y))
-        # right_wheel_pos = (int(cart_x_screen + rw_rot_x), int(cart_y_pos - rw_rot_y))
-        pygame.draw.circle(self.screen, (100, 100, 100), left_wheel_pos, wheel_radius_pixels)
-        pygame.draw.circle(self.screen, (100, 100, 100), right_wheel_pos, wheel_radius_pixels)
-        
-        # Draw pendulum
-        pendulum_length_pixels = int(self.L_2 * scale * 0.8)
-        pendulum_end_x = int(cart_x_screen + pendulum_length_pixels * np.sin(theta_2))
-        pendulum_end_y = int(cart_y_pos - pendulum_length_pixels * np.cos(theta_2))
-        pygame.draw.line(self.screen, (200, 0, 0), (cart_x_screen, cart_y_pos), 
-                         (pendulum_end_x, pendulum_end_y), 5)
-        
         # Display info
         text_lines = [
             f"Step: {self.current_step}/{self.max_episode_steps}",
             f"Body (th1): {theta_1 * 180/np.pi:.1f} deg",
             f"Pend (th2): {theta_2 * 180/np.pi:.1f} deg",
-            f"Wheel L: {theta_L:.1f} rad", 
+            f"Wheel L: {theta_L:.1f} rad",
             f"Wheel R: {theta_R:.1f} rad"
         ]
-        for i, line in enumerate(text_lines):
-            surf = self.font.render(line, True, (0, 0, 0))
-            self.screen.blit(surf, (10, 10 + i*20))
-
+        # for i, line in enumerate(text_lines):
+        #     surf = self.font.render(line, True, (0, 0, 0))
+        #     self.screen.blit(surf, (10, 10 + i*20))
+        print("\n".join(text_lines))  # For debugging, you can print to console
         pygame.display.flip()
-        self.clock.tick(self.metadata['render_fps'])
+        # self.clock.tick(self.metadata['render_fps'])
 
     def close(self):
         if self.render_mode == "human" and self.screen is not None:

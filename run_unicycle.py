@@ -4,7 +4,7 @@
 使用模块化结构运行仿真
 """
 
-from envsim.realg import main
+from envsim.main import main
 
 if __name__ == "__main__":
-    main() 
+    main()

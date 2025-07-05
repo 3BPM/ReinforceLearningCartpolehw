@@ -1,6 +1,6 @@
 import pygame
 import math
-from config import Config
+from envsim.config import Config
 
 # ==================== 渲染器类 ====================
 class UnicycleRenderer:
@@ -9,7 +9,7 @@ class UnicycleRenderer:
         self.height = height or Config.window_height
         self.scale = Config.scale
         self.ground_y = self.height - 100
-
+        pygame.init()
         # 颜色定义
         self.colors = {
             'black': (0, 0, 0),
@@ -61,6 +61,29 @@ class UnicycleRenderer:
 
         # 绘制UI
         self._draw_ui(screen, simulator, is_paused)
+
+    def render_cartpole(self, screen, state, theta_L, theta_R, theta_1, theta_2):
+        """渲染小车倒立摆系统"""
+        # 清屏
+        screen.fill(self.colors['white'])
+
+        # 绘制地面
+        pygame.draw.line(screen, self.colors['black'], (0, self.ground_y), (self.width, self.ground_y), 3)
+
+        # 获取状态
+        theta_L = theta_L      # 轮子位置 (x)
+        # theta_R = state[1]    # (未使用)
+
+        wheel_rot_angle = (theta_L / Config.r_wheel) % (2 * math.pi)
+
+        # 绘制轮子
+        self._draw_wheel(screen, theta_L, wheel_rot_angle)
+
+        # 【修改点 1】: 绘制车体，并捕获其末端坐标
+        body_end_x, body_end_y = self._draw_body(screen, theta_L, theta_1)
+
+        # 【修改点 2】: 使用正确的坐标来绘制摆杆
+        self._draw_pole(screen, body_end_x, body_end_y, theta_2)
 
     def _draw_wheel(self, screen, wheel_pos_m, wheel_rot_angle):
         """绘制轮子"""

@@ -1,5 +1,5 @@
 import numpy as np
-from config import Config
+from envsim.config import Config
 
 # ==================== 仿真器类 ====================
 class UnicycleSimulator:

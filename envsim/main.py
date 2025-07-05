@@ -1,10 +1,10 @@
 import pygame
-from lqr_controller import LQRController
-from simulator import UnicycleSimulator
-from renderer import UnicycleRenderer
-from input_handler import InputHandler
-from result_analyzer import ResultAnalyzer
-from config import Config
+from envsim.lqr_controller import LQRController
+from envsim.simulator import UnicycleSimulator
+from envsim.renderer import UnicycleRenderer
+from envsim.input_handler import InputHandler
+from envsim.result_analyzer import ResultAnalyzer
+from envsim.config import Config
 
 # ==================== 主程序 ====================
 def main():

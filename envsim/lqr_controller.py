@@ -2,7 +2,7 @@ import numpy as np
 from numpy.linalg import inv
 from scipy.linalg import solve_discrete_are
 from scipy.signal import cont2discrete
-from config import Config
+from envsim.config import Config
 
 # ==================== LQR控制器类 ====================
 class LQRController:
@@ -17,7 +17,7 @@ class LQRController:
         I_2 = Config.I_pole     # 摆杆惯量
         r = Config.r_wheel      # 轮子半径
         g = Config.g            # 重力加速度
-        
+
         # 系统建模 - 构建惯性矩阵 P
         P = np.array([
             [1, 0, 0, 0],
@@ -78,7 +78,7 @@ class LQRController:
         # 计算离散LQR增益
         self.K = self._dlqr(G, H, Q_lqr, R_lqr)
         print("计算得到的LQR增益矩阵 K:", self.K)
-        
+
         # 保存系统矩阵
         self.A = A
         self.B = B
