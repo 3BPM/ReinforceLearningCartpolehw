@@ -3,10 +3,11 @@ from config import Config
 
 # ==================== 仿真器类 ====================
 class UnicycleSimulator:
-    def __init__(self, controller, result_analyzer=None,state=np.array([0, 0.2, 0, 0])):
+    def __init__(self, controller, result_analyzer=None,state=None):
         self.controller = controller
         self.A, self.B = controller.get_system_matrices()
-        self.state =  state # 初始状态
+        self.state = np.array(state) if state is not None else np.array(Config.initial_state)
+
         """[ θL    ]  (左轮角度)
       [ θR    ]  (右轮角度)
       [ θ1    ]  (连杆1角度)
@@ -28,7 +29,7 @@ state  =  [ θL_dot]  (左轮角速度)
 
     def reset(self):
         """重置仿真状态"""
-        self.state = np.array([0, 0.2, 0, 0])
+        self.state = np.array(Config.initial_state)
         self.manual_force = 0.0
         self.is_lqr_active = True
         self.simulation_time = 0.0
