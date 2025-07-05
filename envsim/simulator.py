@@ -3,10 +3,10 @@ from config import Config
 
 # ==================== 仿真器类 ====================
 class UnicycleSimulator:
-    def __init__(self, controller, result_analyzer=None):
+    def __init__(self, controller, result_analyzer=None,state=np.array([0, 0.2, 0, 0])):
         self.controller = controller
         self.A, self.B = controller.get_system_matrices()
-        self.state = np.array([0, 0.2, 0, 0])  # 初始状态
+        self.state =  state # 初始状态
         self.dt = Config.dt
         self.speed_multiplier = 1.0
         self.is_lqr_active = True
