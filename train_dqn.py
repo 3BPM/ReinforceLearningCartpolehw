@@ -5,47 +5,8 @@ from dqn_agent import DQNAgent
 import time
 import os
 from configs import HIDDEN_SIZE,PATH
+from vis import plot_training_results
 
-def plot_training_results(rewards, losses, lengths, window=100):
-    plt.figure(figsize=(15, 5))
-
-    # Reward plot
-    plt.subplot(1, 3, 1)
-    plt.plot(rewards, alpha=0.3, label='Episode Reward')
-    moving_avg = np.convolve(rewards, np.ones(window)/window, mode='valid')
-    plt.plot(np.arange(window-1, len(rewards)), moving_avg, 'r-', label=f'{window}-ep Avg')
-    plt.title('Training Rewards')
-    plt.xlabel('Episode')
-    plt.ylabel('Reward')
-    plt.legend()
-
-    # Loss plot
-    plt.subplot(1, 3, 2)
-    plt.plot(losses, alpha=0.3, label='Training Loss')
-    moving_avg = np.convolve(losses, np.ones(window)/window, mode='valid')
-    plt.plot(np.arange(window-1, len(losses)), moving_avg, 'r-', label=f'{window}-ep Avg')
-    plt.title('Training Losses')
-    plt.xlabel('Episode')
-    plt.ylabel('Loss')
-    plt.legend()
-
-    # Length plot
-    plt.subplot(1, 3, 3)
-    plt.plot(lengths, alpha=0.3, label='Episode Length')
-    moving_avg = np.convolve(lengths, np.ones(window)/window, mode='valid')
-    plt.plot(np.arange(window-1, len(lengths)), moving_avg, 'r-', label=f'{window}-ep Avg')
-    plt.title('Episode Lengths')
-    plt.xlabel('Episode')
-    plt.ylabel('Steps')
-    plt.legend()
-
-    plt.tight_layout()
-    from datetime import datetime
-    # 保存为当前时间文件名
-    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"plot_{current_time}.png"
-    plt.savefig(filename)
-    print(f"Saved as: {filename}")
 
 def test_agent(env, agent, num_episodes=5):
     print("\nTesting trained agent...")
