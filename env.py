@@ -135,16 +135,18 @@ class BalancingCartEnv(gym.Env):
 
         return self.state.astype(np.float32), reward, terminated, truncated, {}
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, state=None):
         super().reset(seed=seed)
         initial_theta1 = self.np_random.uniform(low=-0.1, high=0.1)
         initial_theta2 = self.np_random.uniform(low=-0.1, high=0.1)
-
-        self.state = np.array([
-            0.0, 0.0,
-            initial_theta1, initial_theta2,
-            0.0, 0.0, 0.0, 0.0
-        ], dtype=np.float32)
+        if state is not None:
+            self.state = state
+        else:
+            self.state = np.array([
+                0.0, 0.0,
+                initial_theta1, initial_theta2,
+                0.0, 0.0, 0.0, 0.0
+            ], dtype=np.float32)
 
         self.current_step = 0
         if self.render_mode == "human":
