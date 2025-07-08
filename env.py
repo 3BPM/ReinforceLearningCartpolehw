@@ -1,3 +1,4 @@
+
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
@@ -5,7 +6,7 @@ from scipy.signal import cont2discrete
 import pygame
 from envsim.config import Config
 from envsim.lqr_controller import build_system_matrices
-from envsim.renderer import UnicycleRenderer  # 导入渲染器
+from envsim.renderer import UnicycleRenderer
 
 class BalancingCartEnv(gym.Env):
     metadata = {
@@ -16,94 +17,83 @@ class BalancingCartEnv(gym.Env):
     def __init__(self, render_mode=None):
         super().__init__()
 
-        # 统一物理参数来源
-        self.m_1 = Config.m_car
-        self.m_2 = Config.m_pole
-        self.r = Config.r_wheel
-        self.L_1 = Config.L_body
-        self.L_2 = Config.L_pole
-        self.l_1 = Config.l_body
-        self.l_2 = Config.l_pole
-        self.g = Config.g
-        self.I_1_com = Config.I_body
-        self.I_2_com = Config.I_pole
-
-        # 系统矩阵（与LQRController一致）
-        A_c, B_c, _, _, _, _ = build_system_matrices(Ts=0.005)
-        self.A_c = A_c
-        self.B_c = B_c
-        self.Ts = 0.005  # Sampling time
+        # 系统矩阵
+        A_c, B_c, _, _, _, _ = build_system_matrices(Ts=Config.g) # Ts在这里不重要
+        self.Ts = 0.01  # 控制周期，与单片机代码一致
+        
+        # 您的代码是离散的，这里我们假设A_c, B_c是连续时间矩阵
         # 离散化
-        discrete_system = cont2discrete((self.A_c, self.B_c, np.eye(8), np.zeros((8, 2))),
+        discrete_system = cont2discrete((A_c, B_c, np.eye(8), np.zeros((8, 2))),
                                        self.Ts, method='zoh')
         self.A_d = discrete_system[0]
         self.B_d = discrete_system[1]
 
         # Action space
-        self.max_wheel_angular_accel = Config.max_wheel_angular_accel
         self.action_space = spaces.Box(
-            low=np.full((2,), -self.max_wheel_angular_accel, dtype=np.float32),
-            high=np.full((2,), self.max_wheel_angular_accel, dtype=np.float32),
+            low=-Config.max_wheel_angular_accel,
+            high=Config.max_wheel_angular_accel,
             shape=(2,),
             dtype=np.float32
         )
 
         # Observation space
-        obs_limit_angles = 90 * np.pi / 180
-        obs_limit_vels = 100
-        obs_limit_wheel_pos = 1000
+        # [theta_L, theta_R, theta_1, theta_2, dot_theta_L, dot_theta_R, dot_theta_1, dot_theta_2]
         high_obs = np.array([
-            obs_limit_wheel_pos, obs_limit_wheel_pos,
-            obs_limit_angles, obs_limit_angles,
-            obs_limit_vels, obs_limit_vels, obs_limit_vels, obs_limit_vels
+            np.inf, np.inf,                         # Wheel positions (rad)
+            np.pi / 2, np.pi / 2,                   # Body and pole angles (rad)
+            100.0, 100.0,                           # Wheel velocities (rad/s)
+            100.0, 100.0                            # Body and pole angular velocities (rad/s)
         ], dtype=np.float32)
         self.observation_space = spaces.Box(low=-high_obs, high=high_obs, dtype=np.float32)
 
         # Episode control
-        self.theta1_limit = 60 * np.pi / 180
-        self.theta2_limit = 60 * np.pi / 180
-        self.max_episode_steps = 4000
+        self.theta1_limit = 45 * np.pi / 180 # 45度
+        self.theta2_limit = 45 * np.pi / 180 # 45度
+        self.max_episode_steps = 1000 # 相当于10秒
         self.current_step = 0
         self.state = None
 
         # Rendering
         self.render_mode = render_mode
+        self.renderer = None
         if self.render_mode == "human":
             pygame.init()
-            self.screen = pygame.display.set_mode((1200,800))
-            self.renderer = UnicycleRenderer()  # 初始化渲染器
-        else:
-            self.renderer = None
+            self.screen = pygame.display.set_mode((1200, 800))
+            self.clock = pygame.time.Clock()
+            self.renderer = UnicycleRenderer()
 
     def step(self, action):
-        # Clip action
-        if isinstance(self.action_space, spaces.Box):
-            action = np.clip(action, self.action_space.low, self.action_space.high)
-        # Dynamics update
-        if self.state is not None and action is not None:
-            self.state = self.A_d @ self.state + self.B_d @ action
-            theta_L, theta_R, theta_1, theta_2, dot_theta_L, dot_theta_R, dot_theta_1, dot_theta_2 = self.state
-        else:
-            # fallback to zeros if state/action is None
-            theta_L = theta_R = theta_1 = theta_2 = dot_theta_L = dot_theta_R = dot_theta_1 = dot_theta_2 = 0.0
+        action = np.clip(action, self.action_space.low, self.action_space.high)
+        
+        # 动力学更新
+        self.state = self.A_d @ self.state + self.B_d @ action
+        theta_L, theta_R, theta_1, theta_2, dot_theta_L, dot_theta_R, dot_theta_1, dot_theta_2 = self.state
 
-        # Termination condition
+        # 终止条件
         terminated = bool(
             abs(theta_1) > self.theta1_limit or
             abs(theta_2) > self.theta2_limit
         )
 
-        # Reward function (改进版)
-        reward = 1.0  # Survival bonus
+        # --- 奖励函数 (核心！) ---
+        # 目标是让 theta_1 和 theta_2 都趋近于 0
         if not terminated:
-            angle_penalty = 0.5*(theta_1**2) + 5*(theta_2**2)
-            velocity_penalty = 0.001 * (dot_theta_1**2 + dot_theta_2**2)
-            action_penalty = 0.0001 * (action[0]**2 + action[1]**2)
-            upright_reward = 0.5 * np.exp(-20 * theta_2**2)
+            # 存活奖励
+            reward = 1.0
+            
+            # 角度惩罚: 离垂直线越远，惩罚越大
+            angle_penalty = 5.0 * (theta_1**2) + 10.0 * (theta_2**2)
+            
+            # 速度惩罚: 不希望它晃动得太厉害
+            velocity_penalty = 0.01 * (dot_theta_1**2) + 0.1 * (dot_theta_2**2)
 
-            reward += upright_reward - (angle_penalty + velocity_penalty + action_penalty)
+            # 动作惩罚: 节省能量
+            action_penalty = 0.001 * np.sum(np.square(action))
+            
+            reward -= (angle_penalty + velocity_penalty + action_penalty)
         else:
-            reward = -100.0  # Failure penalty
+            # 失败惩罚
+            reward = -100.0
 
         self.current_step += 1
         truncated = self.current_step >= self.max_episode_steps
@@ -111,54 +101,39 @@ class BalancingCartEnv(gym.Env):
         if self.render_mode == "human":
             self.render()
 
-        if self.state is not None:
-            return self.state.astype(np.float32), reward, terminated, truncated, {}
-        else:
-            return np.zeros(8, dtype=np.float32), reward, terminated, truncated, {}
+        return self.state.astype(np.float32), reward, terminated, truncated, {}
 
-    def reset(self, seed=None, state=None):
+    def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        initial_theta1 = self.np_random.uniform(low=-0.1, high=0.1)
-        initial_theta2 = self.np_random.uniform(low=-0.1, high=0.1)
-        if state is not None:
-            self.state = state
-        else:
-            self.state = np.array([
-                0.0, 0.0,
-                initial_theta1, initial_theta2,
-                0.0, 0.0, 0.0, 0.0
-            ], dtype=np.float32)
-
+        # 从一个稍微偏离平衡点的位置开始
+        self.state = self.np_random.uniform(low=-0.05, high=0.05, size=8)
         self.current_step = 0
+        
+        # 确保初始角度不为0，增加挑战
+        self.state[2] = self.np_random.uniform(low=-0.1, high=0.1) # theta_1
+        self.state[3] = self.np_random.uniform(low=-0.1, high=0.1) # theta_2
+        
         if self.render_mode == "human":
             self.render()
+            
         return self.state.astype(np.float32), {}
 
     def render(self):
-        if self.render_mode != "human" or self.state is None or self.renderer is None:
+        if self.render_mode != "human" or self.renderer is None:
             return
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                self.close()
+                return
 
-        # 使用渲染器进行渲染
         theta_L, theta_R, theta_1, theta_2, _, _, _, _ = self.state
         self.renderer.render_cartpole(self.screen, self.state, theta_L, theta_R, theta_1, theta_2)
-
-        # Display info
-        text_lines = [
-            f"Step: {self.current_step}/{self.max_episode_steps}",
-            f"Body (th1): {theta_1 * 180/np.pi:.1f} deg",
-            f"Pend (th2): {theta_2 * 180/np.pi:.1f} deg",
-            f"Wheel L: {theta_L:.1f} rad",
-            f"Wheel R: {theta_R:.1f} rad"
-        ]
-        # for i, line in enumerate(text_lines):
-        #     surf = self.font.render(line, True, (0, 0, 0))
-        #     self.screen.blit(surf, (10, 10 + i*20))
-        print("\n".join(text_lines))  # For debugging, you can print to console
         pygame.display.flip()
-        # self.clock.tick(self.metadata['render_fps'])
+        self.clock.tick(self.metadata['render_fps'])
 
     def close(self):
-        if self.render_mode == "human" and self.screen is not None:
+        if self.screen is not None:
             pygame.display.quit()
             pygame.quit()
             self.screen = None
