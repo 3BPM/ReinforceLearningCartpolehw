@@ -3,6 +3,8 @@ import gymnasium as gym
 from gymnasium import spaces
 from scipy.signal import cont2discrete
 import pygame
+from envsim.config import Config
+from envsim.lqr_controller import build_system_matrices
 from envsim.renderer import UnicycleRenderer  # 导入渲染器
 
 class BalancingCartEnv(gym.Env):
@@ -14,52 +16,24 @@ class BalancingCartEnv(gym.Env):
     def __init__(self, render_mode=None):
         super().__init__()
 
-        # Physical parameters
-        self.m_1 = 0.9      # kg
-        self.m_2 = 0.1      # kg
-        self.r = 0.0335     # m
-        self.L_1 = 0.126    # m
-        self.L_2 = 0.390    # m
-        self.l_1 = self.L_1 / 2
-        self.l_2 = self.L_2 / 2
-        self.g = 9.81       # m/s^2
+        # 统一物理参数来源
+        self.m_1 = Config.m_car
+        self.m_2 = Config.m_pole
+        self.r = Config.r_wheel
+        self.L_1 = Config.L_body
+        self.L_2 = Config.L_pole
+        self.l_1 = Config.l_body
+        self.l_2 = Config.l_pole
+        self.g = Config.g
+        self.I_1_com = Config.I_body
+        self.I_2_com = Config.I_pole
 
-        # Moment of inertia
-        self.I_1_com = (1/12) * self.m_1 * self.L_1**2
-        self.I_2_com = (1/12) * self.m_2 * self.L_2**2
-
-        # System matrices
-        p = np.zeros((4, 4))
-        p[0, 0] = 1.0
-        p[1, 1] = 1.0
-        p[2, 0] = (self.r / 2) * (self.m_1 * self.l_1 + self.m_2 * self.L_1)
-        p[2, 1] = (self.r / 2) * (self.m_1 * self.l_1 + self.m_2 * self.L_1)
-        p[2, 2] = self.m_1 * self.l_1**2 + self.m_2 * self.L_1**2 + self.I_1_com
-        p[2, 3] = self.m_2 * self.L_1 * self.l_2
-        p[3, 0] = (self.r / 2) * self.m_2 * self.l_2
-        p[3, 1] = (self.r / 2) * self.m_2 * self.l_2
-        p[3, 2] = self.m_2 * self.L_1 * self.l_2
-        p[3, 3] = self.m_2 * self.l_2**2 + self.I_2_com
-        self.P_matrix = p
-        self.P_inv_matrix = np.linalg.inv(self.P_matrix)
-
-        q_coeffs = np.zeros((4, 10))
-        q_coeffs[0, 8] = 1.0
-        q_coeffs[1, 9] = 1.0
-        q_coeffs[2, 2] = (self.m_1 * self.l_1 + self.m_2 * self.L_1) * self.g
-        q_coeffs[3, 3] = self.m_2 * self.g * self.l_2
-        self.Q_coeffs_matrix = q_coeffs
-        self.temp_matrix = self.P_inv_matrix @ self.Q_coeffs_matrix
-
-        # Continuous state space
-        self.A_c = np.zeros((8, 8))
-        self.A_c[0:4, 4:8] = np.eye(4)
-        self.A_c[4:8, 0:8] = self.temp_matrix[:, 0:8]
-        self.B_c = np.zeros((8, 2))
-        self.B_c[4:8, 0:2] = self.temp_matrix[:, 8:10]
-
-        # Discrete time system
+        # 系统矩阵（与LQRController一致）
+        A_c, B_c, _, _, _, _ = build_system_matrices(Ts=0.005)
+        self.A_c = A_c
+        self.B_c = B_c
         self.Ts = 0.005  # Sampling time
+        # 离散化
         discrete_system = cont2discrete((self.A_c, self.B_c, np.eye(8), np.zeros((8, 2))),
                                        self.Ts, method='zoh')
         self.A_d = discrete_system[0]
@@ -68,8 +42,8 @@ class BalancingCartEnv(gym.Env):
         # Action space
         self.max_wheel_angular_accel = 50.0
         self.action_space = spaces.Box(
-            low=-self.max_wheel_angular_accel,
-            high=self.max_wheel_angular_accel,
+            low=np.full((2,), -self.max_wheel_angular_accel, dtype=np.float32),
+            high=np.full((2,), self.max_wheel_angular_accel, dtype=np.float32),
             shape=(2,),
             dtype=np.float32
         )
@@ -103,11 +77,15 @@ class BalancingCartEnv(gym.Env):
 
     def step(self, action):
         # Clip action
-        action = np.clip(action, self.action_space.low, self.action_space.high)
-
+        if isinstance(self.action_space, spaces.Box):
+            action = np.clip(action, self.action_space.low, self.action_space.high)
         # Dynamics update
-        self.state = self.A_d @ self.state + self.B_d @ action
-        theta_L, theta_R, theta_1, theta_2, dot_theta_L, dot_theta_R, dot_theta_1, dot_theta_2 = self.state
+        if self.state is not None and action is not None:
+            self.state = self.A_d @ self.state + self.B_d @ action
+            theta_L, theta_R, theta_1, theta_2, dot_theta_L, dot_theta_R, dot_theta_1, dot_theta_2 = self.state
+        else:
+            # fallback to zeros if state/action is None
+            theta_L = theta_R = theta_1 = theta_2 = dot_theta_L = dot_theta_R = dot_theta_1 = dot_theta_2 = 0.0
 
         # Termination condition
         terminated = bool(
@@ -133,7 +111,10 @@ class BalancingCartEnv(gym.Env):
         if self.render_mode == "human":
             self.render()
 
-        return self.state.astype(np.float32), reward, terminated, truncated, {}
+        if self.state is not None:
+            return self.state.astype(np.float32), reward, terminated, truncated, {}
+        else:
+            return np.zeros(8, dtype=np.float32), reward, terminated, truncated, {}
 
     def reset(self, seed=None, state=None):
         super().reset(seed=seed)
