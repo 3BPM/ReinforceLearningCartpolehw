@@ -43,22 +43,134 @@ def plot_training_results(rewards, losses, lengths, window=100):
 
 
 
-def plot_system_response(system_response, time_vector):
-    """绘制系统响应曲线
+import matplotlib.pyplot as plt
+import numpy as np
+
+def plot_system_outputs(system_responses, time_vectors=None, titles=None, n_subplots=None,
+                       subplot_titles=['左轮转角', '右轮转角', '车身倾角', '摆杆倾角'],
+                       line_styles=None, colors=None, figsize=(10, 8)):
+    """
+    绘制并比较多组系统响应曲线
     
     参数:
-    system_response -- 系统响应数据 (numpy数组)
-    time_vector -- 时间向量 (numpy数组)
+    system_responses -- 系统响应数据列表，每个元素是一个形状为(n,4)的numpy数组
+    time_vectors -- 时间向量列表，每个元素是一个numpy数组。如果为None，则使用索引作为x轴
+    titles -- 每组响应数据的图例标题列表
+    subplot_titles -- 每个子图的标题列表
+    line_styles -- 线型列表，如['-', '--', ':']
+    colors -- 颜色列表，如['b', 'g', 'r']
+    figsize -- 图形大小
     """
-    plt.figure(figsize=(10,8))
-    titles = ['左轮转角', '右轮转角', '车身倾角', '摆杆倾角']
-    for i in range(4):
-        plt.subplot(4,1,i+1)
-        plt.plot(time_vector, system_response[:,i], 'b', linewidth=1.5)
+    if not isinstance(system_responses, list):
+        system_responses = [system_responses]
+    
+    n_responses = len(system_responses)
+    if n_subplots is None:
+        n_subplots = system_responses[0].shape[1] if len(system_responses[0].shape) > 1 else 1
+    
+    # 设置默认值
+    if time_vectors is None:
+        time_vectors = [np.arange(len(resp)) for resp in system_responses]
+    elif not isinstance(time_vectors, list):
+        time_vectors = [time_vectors]
+    
+    if titles is None:
+        titles = [f'响应 {i+1}' for i in range(n_responses)]
+    
+    if line_styles is None:
+        line_styles = ['-'] * n_responses
+    
+    if colors is None:
+        colors = np.random.rand(n_responses, 3)
+    
+    plt.figure(figsize=figsize)
+    
+    for i in range(n_subplots):
+        plt.subplot(n_subplots, 1, i+1)
+        
+        for j in range(n_responses):
+            # 处理单变量情况
+            if len(system_responses[j].shape) == 1:
+                y_data = system_responses[j]
+            else:
+                y_data = system_responses[j][:, i]
+                
+            plt.plot(time_vectors[j], y_data, 
+                    linestyle=line_styles[j % len(line_styles)],
+                    color=colors[j % len(colors)],
+                    linewidth=1.5,
+                    label=titles[j])
+        
         plt.grid(True)
-        plt.title(titles[i])
+        if i < len(subplot_titles):
+            plt.title(subplot_titles[i])
+        plt.legend()
+    
     plt.tight_layout()
     plt.show()
+import numpy as np
+import matplotlib.pyplot as plt
+
+def plot_from_t_y_pairs(t_y_pairs_list,
+                        titles=None,
+                        subplot_titles=['左轮转角', '右轮转角', '车身倾角', '摆杆倾角'],
+                        line_styles=None,
+                        colors=None,
+                        figsize=(10, 8)):
+    """
+    在同一张图上绘制多组 (t, y) 数据对，支持每组数据有不同采样时间间隔。
+    
+    参数:
+    t_y_pairs_list -- 列表，每个元素为 (t, y)，t 是时间向量，y 是 shape=(n,) 或 (n,4) 的数组
+    titles -- 每组响应数据的图例名称
+    subplot_titles -- 每个子图的标题（最多支持4个子图）
+    line_styles -- 各曲线的线型列表，如 ['-', '--', ':']
+    colors -- 各曲线的颜色列表，如 ['b', 'g', 'r']
+    figsize -- 图形尺寸
+    """
+    if not isinstance(t_y_pairs_list, list):
+        raise ValueError("t_y_pairs_list 必须是一个列表，元素为 (t, y) 对。")
+    
+    n_responses = len(t_y_pairs_list)
+    
+    # 推断子图数量
+    sample_y = t_y_pairs_list[0][1]
+    n_subplots = sample_y.shape[1] if len(sample_y.shape) > 1 else 1
+    
+    if titles is None:
+        titles = [f'响应 {i+1}' for i in range(n_responses)]
+    
+    if line_styles is None:
+        line_styles = ['-'] * n_responses
+    
+    if colors is None:
+        colors = [None] * n_responses  # 使用默认颜色
+    
+    plt.figure(figsize=figsize)
+    
+    for i in range(n_subplots):
+        plt.subplot(n_subplots, 1, i+1)
+        
+        for j, (t, y) in enumerate(t_y_pairs_list):
+            if len(y.shape) == 1 or y.ndim == 1:
+                y_data = y
+            else:
+                y_data = y[:, i]
+                
+            plt.plot(t, y_data,
+                     linestyle=line_styles[j % len(line_styles)],
+                     color=colors[j % len(colors)] if colors[j % len(colors)] else None,
+                     linewidth=1.5,
+                     label=titles[j])
+        
+        plt.grid(True)
+        if i < len(subplot_titles):
+            plt.title(subplot_titles[i])
+        plt.legend()
+    
+    plt.tight_layout()
+    plt.show()
+
     
 
 def simulate_and_plot(initial_state, time_vector, closed_loop_matrix, input_matrix, input_signal, output_matrix):
@@ -74,9 +186,57 @@ def simulate_and_plot(initial_state, time_vector, closed_loop_matrix, input_matr
     """
     state = initial_state
     system_response = np.zeros((len(time_vector), output_matrix.shape[0]))
-    
     for i in range(len(time_vector)):
         system_response[i,:] = output_matrix @ state
         state = closed_loop_matrix @ state + input_matrix @ input_signal[:,i]
     
-    plot_system_response(system_response, time_vector)
+    plot_system_outputs(system_response, time_vector)
+import matplotlib.pyplot as plt
+import numpy as np
+
+def print_a_matrix(A, cmap='viridis', annotate=True, fmt=".2f", 
+                   title="Matrix Visualization", xlabel="Columns", ylabel="Rows"):
+    """
+    Visualize a matrix using a heatmap style plot with optional annotations.
+    
+    Parameters:
+    -----------
+    A : 2D array-like
+        The matrix to visualize
+    cmap : str, optional
+        Colormap to use (default: 'viridis')
+    annotate : bool, optional
+        Whether to display the numerical values in each cell (default: True)
+    fmt : str, optional
+        Format string for annotations (default: ".2f")
+    title : str, optional
+        Title for the plot (default: "Matrix Visualization")
+    xlabel : str, optional
+        Label for x-axis (default: "Columns")
+    ylabel : str, optional
+        Label for y-axis (default: "Rows")
+    """
+    
+    # Create the heatmap
+    im = plt.imshow(A, cmap=cmap, aspect='auto')
+    plt.colorbar(im, fraction=0.046, pad=0.04)
+    # Make the plot square and hide axes
+    plt.gca().set_aspect('equal')
+    plt.xticks([])
+    plt.yticks([])
+    # Add annotations if requested
+    if annotate:
+        for i in range(A.shape[0]):
+            for j in range(A.shape[1]):
+                plt.text(j, i, format(A[i, j], fmt),
+                         ha="center", va="center",
+                         color="white" if A[i,j] < np.max(A)/2 else "black")
+    
+    # Add labels and title
+    plt.title(title)
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    
+    # Show the plot
+    plt.tight_layout()
+    plt.show()
