@@ -43,8 +43,7 @@ def plot_training_results(rewards, losses, lengths, window=100):
 
 
 
-import matplotlib.pyplot as plt
-import numpy as np
+
 
 def plot_system_outputs(system_responses, time_vectors=None, titles=None, n_subplots=None,
                        subplot_titles=['左轮转角', '右轮转角', '车身倾角', '摆杆倾角'],
@@ -108,12 +107,12 @@ def plot_system_outputs(system_responses, time_vectors=None, titles=None, n_subp
     
     plt.tight_layout()
     plt.show()
-import numpy as np
-import matplotlib.pyplot as plt
+
 
 def plot_from_t_y_pairs(t_y_pairs_list,
                         titles=None,
                         subplot_titles=['左轮转角', '右轮转角', '车身倾角', '摆杆倾角'],
+                        n_subplots=None,
                         line_styles=None,
                         colors=None,
                         figsize=(10, 8)):
@@ -135,7 +134,8 @@ def plot_from_t_y_pairs(t_y_pairs_list,
     
     # 推断子图数量
     sample_y = t_y_pairs_list[0][1]
-    n_subplots = sample_y.shape[1] if len(sample_y.shape) > 1 else 1
+    if n_subplots is None:
+        n_subplots = sample_y.shape[1] if len(sample_y.shape) > 1 else 1
     
     if titles is None:
         titles = [f'响应 {i+1}' for i in range(n_responses)]
@@ -191,52 +191,50 @@ def simulate_and_plot(initial_state, time_vector, closed_loop_matrix, input_matr
         state = closed_loop_matrix @ state + input_matrix @ input_signal[:,i]
     
     plot_system_outputs(system_response, time_vector)
-import matplotlib.pyplot as plt
-import numpy as np
 
-def print_a_matrix(A, cmap='viridis', annotate=True, fmt=".2f", 
+def print_a_matrix(A, ax=None, cmap='viridis', annotate=True, fmt=".2f", 
                    title="Matrix Visualization", xlabel="Columns", ylabel="Rows"):
-    """
-    Visualize a matrix using a heatmap style plot with optional annotations.
-    
-    Parameters:
-    -----------
-    A : 2D array-like
-        The matrix to visualize
-    cmap : str, optional
-        Colormap to use (default: 'viridis')
-    annotate : bool, optional
-        Whether to display the numerical values in each cell (default: True)
-    fmt : str, optional
-        Format string for annotations (default: ".2f")
-    title : str, optional
-        Title for the plot (default: "Matrix Visualization")
-    xlabel : str, optional
-        Label for x-axis (default: "Columns")
-    ylabel : str, optional
-        Label for y-axis (default: "Rows")
-    """
-    
-    # Create the heatmap
-    im = plt.imshow(A, cmap=cmap, aspect='auto')
-    plt.colorbar(im, fraction=0.046, pad=0.04)
-    # Make the plot square and hide axes
-    plt.gca().set_aspect('equal')
-    plt.xticks([])
-    plt.yticks([])
-    # Add annotations if requested
+    need_show=False
+    if ax is None:
+        ax = plt.gca()
+        need_show=True
+        
+    im = ax.imshow(A, cmap=cmap, aspect='auto')
+    plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
+
+    ax.set_aspect('equal')
+    ax.set_xticks([])
+    ax.set_yticks([])
+
     if annotate:
         for i in range(A.shape[0]):
             for j in range(A.shape[1]):
-                plt.text(j, i, format(A[i, j], fmt),
-                         ha="center", va="center",
-                         color="white" if A[i,j] < np.max(A)/2 else "black")
-    
-    # Add labels and title
-    plt.title(title)
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
-    
-    # Show the plot
-    plt.tight_layout()
-    plt.show()
+                ax.text(j, i, format(A[i, j], fmt),
+                        ha="center", va="center",
+                        color="white" if A[i,j] < np.max(A)/2 else "black")
+
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    if need_show:
+        plt.show()
+def compare_matrices(K, data):
+    if K.shape == data.shape or (K.T.shape == data.shape):
+        K_comp = K.T if K.shape != data.shape else K
+        diff = K_comp - data
+
+        fig, axs = plt.subplots(1, 3, figsize=(15, 5))
+
+        print_a_matrix(K_comp, ax=axs[0], title="K_comp")
+        print_a_matrix(data, ax=axs[1], title="data")
+        print_a_matrix(diff, ax=axs[2], title="diff")
+
+        plt.tight_layout()
+        plt.show()
+
+        print("K 与 data 的差异 (K - data):\n", diff)
+        print("K 与 data 的最大绝对差值:", np.max(np.abs(diff)))
+        print("K 与 data 的均方根误差(RMSE):", np.sqrt(np.mean(diff**2)))
+        print("K 与 data 是否近似相等 (allclose):", np.allclose(K_comp, data))
+    else:
+        print("K 和 data 的形状不同: K.shape =", K.shape, ", data.shape =", data.shape)
