@@ -21,7 +21,8 @@ class Config:
     R = 0.1                     # LQR控制权重
 
     # initial_state = [0, 0.2, 0, -0.02, 0,0,0,0]
-    initial_state = [0, 0, 0.01, 0, 0, 0, 0, 0]
+    # initial_state = [0, 0, -0.1745, 0.1745, 0,0,0,0]
+    initial_state = [0, 0, 0.00, 0.01, 0, 0, 0, 0]
     # 初始状态 [θL, θR, θ1, θ2, θL_dot, θR_dot, θ1_dot, θ2_dot]
 
     # 可视化参数
@@ -31,3 +32,6 @@ class Config:
     fps = 60
 
     font_name = "Songti SC"
+
+    # 动作空间参数
+    max_wheel_angular_accel = 50  # 轮子最大角加速度

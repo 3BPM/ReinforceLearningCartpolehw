@@ -40,7 +40,7 @@ class BalancingCartEnv(gym.Env):
         self.B_d = discrete_system[1]
 
         # Action space
-        self.max_wheel_angular_accel = 50.0
+        self.max_wheel_angular_accel = Config.max_wheel_angular_accel
         self.action_space = spaces.Box(
             low=np.full((2,), -self.max_wheel_angular_accel, dtype=np.float32),
             high=np.full((2,), self.max_wheel_angular_accel, dtype=np.float32),

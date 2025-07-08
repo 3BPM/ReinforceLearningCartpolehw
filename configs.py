@@ -2,6 +2,6 @@
 HIDDEN_SIZE = 128  # 可根据需要修改，如32,128、256等
 PATH = 'checkpoints/dqn_128.pth'
 
-HIDDEN_SIZES=[32,128,256]
-PATHS=['checkpoints/dqn_32.pth','checkpoints/dqn_128.pth','checkpoints/dqn_256.pth']
+HIDDEN_SIZES=[32,128,256,256]
+PATHS=['checkpoints/dqn_32.pth','checkpoints/dqn_128.pth','checkpoints/dqn_256.pth','checkpoints/dqn_2561.pth']
 
