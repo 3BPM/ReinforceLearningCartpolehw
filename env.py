@@ -102,10 +102,13 @@ class BalancingCartEnv(gym.Env):
 
         return self.state.astype(np.float32), reward, terminated, truncated, {}
 
-    def reset(self, seed=None, options=None):
+    def reset(self, seed=None, state=None):
         super().reset(seed=seed)
         # 从一个稍微偏离平衡点的位置开始
-        self.state = self.np_random.uniform(low=-0.05, high=0.05, size=8)
+        if state is None:
+            self.state = self.np_random.uniform(low=-0.05, high=0.05, size=8)
+        else:
+            self.state=state
         self.current_step = 0
         
         # 确保初始角度不为0，增加挑战
