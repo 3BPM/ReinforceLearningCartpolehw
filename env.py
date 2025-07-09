@@ -18,17 +18,15 @@ class BalancingCartEnv(gym.Env):
         super().__init__()
 
         # 系统矩阵
-        A_c, B_c, _, _, _, _ = build_system_matrices(Ts=Config.g) # Ts在这里不重要
+        A_c, B_c, _, _, self.A_d, self.B_d  = build_system_matrices(Ts=Config.dt) 
         self.Ts = 0.01  # 控制周期，与单片机代码一致
-        
-        # 您的代码是离散的，这里我们假设A_c, B_c是连续时间矩阵
-        # 离散化
-        discrete_system = cont2discrete((A_c, B_c, np.eye(8), np.zeros((8, 2))),
-                                       self.Ts, method='zoh')
-        self.A_d = discrete_system[0]
-        self.B_d = discrete_system[1]
+        self.max_wheel_angular_accel = Config.max_wheel_angular_accel
 
-        # Action space
+        # 代码是离散的，这里我们假设A_c, B_c是连续时间矩阵
+        # 离散化
+
+
+        # Action space 连续的
         self.action_space = spaces.Box(
             low=-Config.max_wheel_angular_accel,
             high=Config.max_wheel_angular_accel,
@@ -47,9 +45,9 @@ class BalancingCartEnv(gym.Env):
         self.observation_space = spaces.Box(low=-high_obs, high=high_obs, dtype=np.float32)
 
         # Episode control
-        self.theta1_limit = 45 * np.pi / 180 # 45度
-        self.theta2_limit = 45 * np.pi / 180 # 45度
-        self.max_episode_steps = 1000 # 相当于10秒
+        self.theta1_limit = 25 * np.pi / 180 # 25度
+        self.theta2_limit = 25 * np.pi / 180 # 25度
+        self.max_episode_steps = 10/self.Ts # 相当于10秒
         self.current_step = 0
         self.state = None
 
@@ -61,6 +59,7 @@ class BalancingCartEnv(gym.Env):
             self.screen = pygame.display.set_mode((1200, 800))
             self.clock = pygame.time.Clock()
             self.renderer = UnicycleRenderer()
+
 
     def step(self, action):
         action = np.clip(action, self.action_space.low, self.action_space.high)

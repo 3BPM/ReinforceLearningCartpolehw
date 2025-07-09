@@ -46,7 +46,16 @@ def plot_training_results(rewards, losses, lengths, window=100):
 
 
 def plot_system_outputs(system_responses, time_vectors=None, titles=None, n_subplots=None,
-                       subplot_titles=['左轮转角', '右轮转角', '车身倾角', '摆杆倾角'],
+                       subplot_titles=[
+                           '左轮转角 (theta_L)', 
+                           '右轮转角 (theta_R)', 
+                           '车身倾角 (theta_1)', 
+                           '摆杆倾角 (theta_2)',
+                           '左轮速度 (dot_theta_L)', 
+                           '右轮速度 (dot_theta_R)',
+                           '车身倾角速度 (dot_theta_1)', 
+                           '摆杆倾角速度 (dot_theta_2)'
+                       ],#'左轮力矩', '右轮力矩',
                        line_styles=None, colors=None, figsize=(10, 8)):
     """
     绘制并比较多组系统响应曲线
@@ -209,7 +218,7 @@ def print_a_matrix(A, ax=None, cmap='viridis', annotate=True, fmt=".2f",
     if annotate:
         for i in range(A.shape[0]):
             for j in range(A.shape[1]):
-                ax.text(j, i, format(A[i, j], fmt),
+                ax.text(j, i, f"{A[i, j]:.2f}",
                         ha="center", va="center",
                         color="white" if A[i,j] < np.max(A)/2 else "black")
 
