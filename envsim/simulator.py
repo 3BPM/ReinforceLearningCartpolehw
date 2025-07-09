@@ -94,7 +94,7 @@ state  =  [ θL_dot]  (左轮角速度)
                 self.state,
                 force_clamped[0, 0]
             )
-        if self.state[2] < -np.pi or self.state[2] > np.pi or self.state[3] < -np.pi or self.state[3] > np.pi:
+        if self.state[2] < Config.max_theta1 or self.state[2] > -Config.max_theta1  or self.state[3] < Config.max_theta2 or self.state[3] > -Config.max_theta2 :
             print("摆杆角度超出范围，仿真结束")
             return True
         else:
