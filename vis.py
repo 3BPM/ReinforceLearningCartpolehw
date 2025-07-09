@@ -182,7 +182,7 @@ def plot_from_t_y_pairs(t_y_pairs_list,
 
     
 
-def simulate_and_plot(initial_state, time_vector, closed_loop_matrix, input_matrix, input_signal, output_matrix):
+def simulate_and_plot(initial_state, time_vector, closed_loop_matrix, input_matrix, input_signal, output_matrix,render=False):
     """模拟闭环系统并绘制响应
     
     参数:
@@ -198,8 +198,13 @@ def simulate_and_plot(initial_state, time_vector, closed_loop_matrix, input_matr
     for i in range(len(time_vector)):
         system_response[i,:] = output_matrix @ state
         state = closed_loop_matrix @ state + input_matrix @ input_signal[:,i]
+
     
     plot_system_outputs(system_response, time_vector)
+    if render:
+        from envsim.renderer import UnicycleRenderer
+        render=UnicycleRenderer()
+        render.playback_from_data(system_response, time_vector)
 
 def print_a_matrix(A, ax=None, cmap='viridis', annotate=True, fmt=".2f", 
                    title="Matrix Visualization", xlabel="Columns", ylabel="Rows"):

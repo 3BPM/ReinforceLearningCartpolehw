@@ -1,4 +1,5 @@
 # ==================== 配置参数定义 ====================
+import numpy as np
 class Config:
     # 物理参数
     m_car = 0.9       # 车体质量
@@ -35,3 +36,5 @@ class Config:
 
     # 动作空间参数
     max_wheel_angular_accel = 50  # 轮子最大角加速度
+    max_theta1 = 25 * np.pi / 180 # 车身倾角最大值
+    max_theta2 = 25 * np.pi / 180 # 摆杆倾角最大值

@@ -131,7 +131,7 @@ class BalancingCartEnv(gym.Env):
                 return
 
         theta_L, theta_R, theta_1, theta_2, _, _, _, _ = self.state
-        self.renderer.render_cartpole(self.screen, self.state, theta_L, theta_R, theta_1, theta_2)
+        self.renderer._render_frame(self.screen, self.state)
         pygame.display.flip()
         self.clock.tick(self.metadata['render_fps'])
 
