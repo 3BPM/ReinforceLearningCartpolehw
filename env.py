@@ -54,6 +54,7 @@ class BalancingCartEnv(gym.Env):
         # Rendering
         self.render_mode = render_mode
         self.renderer = None
+        self.screen=None
         if self.render_mode == "human":
             pygame.init()
             self.screen = pygame.display.set_mode((1200, 800))
