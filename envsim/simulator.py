@@ -27,9 +27,9 @@ state  =  [ θL_dot]  (左轮角速度)
         self.simulation_time = 0.0
         self.is_recording = False
 
-    def reset(self):
+    def reset(self,intial_state=None):
         """重置仿真状态"""
-        self.state = np.array(Config.initial_state)
+        self.state = np.array(intial_state) if intial_state is not None else np.array(Config.initial_state)
         self.manual_force = 0.0
         self.is_lqr_active = True
         self.simulation_time = 0.0
@@ -63,12 +63,14 @@ state  =  [ θL_dot]  (左轮角速度)
     def stop_recording(self):
         """停止记录数据"""
         self.is_recording = False
+    def act(self):
+        u_lqr = self.controller.compute_control(self.state) if self.is_lqr_active else np.array([0.0])
+        return u_lqr
 
     def step(self):
         """执行一步仿真"""
         # 计算LQR控制力
-        u_lqr = self.controller.compute_control(self.state) if self.is_lqr_active else np.array([0.0])
-
+        u_lqr=self.act()
         # 计算总控制力
         # # u_lqr 是 shape=(2,) 的控制向量，分别对应左右轮的控制力
         # manual_force 是人为施加的相同干预力，需要同时作用在左右通道
@@ -95,10 +97,11 @@ state  =  [ θL_dot]  (左轮角速度)
                 force_clamped[0, 0]
             )
         if self.state[2] < Config.max_theta1 or self.state[2] > -Config.max_theta1  or self.state[3] < Config.max_theta2 or self.state[3] > -Config.max_theta2 :
+
+            return False
+        else:
             print("摆杆角度超出范围，仿真结束")
             return True
-        else:
-            return False
 
     def get_state(self):
         """获取当前状态"""

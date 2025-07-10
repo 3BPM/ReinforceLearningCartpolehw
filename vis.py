@@ -47,19 +47,20 @@ def plot_training_results(rewards, losses, lengths, window=100):
 
 def plot_system_outputs(system_responses, time_vectors=None, titles=None, n_subplots=None,
                        subplot_titles=[
-                           '左轮转角 (theta_L)', 
-                           '右轮转角 (theta_R)', 
-                           '车身倾角 (theta_1)', 
+                           '左轮转角 (theta_L)',
+                           '右轮转角 (theta_R)',
+                           '车身倾角 (theta_1)',
                            '摆杆倾角 (theta_2)',
-                           '左轮速度 (dot_theta_L)', 
+                           '左轮速度 (dot_theta_L)',
                            '右轮速度 (dot_theta_R)',
-                           '车身倾角速度 (dot_theta_1)', 
+                           '车身倾角速度 (dot_theta_1)',
                            '摆杆倾角速度 (dot_theta_2)'
-                       ],#'左轮力矩', '右轮力矩',
-                       line_styles=None, colors=None, figsize=(10, 8)):
+                       ],
+                       line_styles=None, colors=None, figsize=(10, 8),
+                       use_degree=True):
     """
     绘制并比较多组系统响应曲线
-    
+
     参数:
     system_responses -- 系统响应数据列表，每个元素是一个形状为(n,4)的numpy数组
     time_vectors -- 时间向量列表，每个元素是一个numpy数组。如果为None，则使用索引作为x轴
@@ -68,52 +69,74 @@ def plot_system_outputs(system_responses, time_vectors=None, titles=None, n_subp
     line_styles -- 线型列表，如['-', '--', ':']
     colors -- 颜色列表，如['b', 'g', 'r']
     figsize -- 图形大小
+    use_degree -- 是否将角度相关量以角度制显示（默认True），否则为弧度制
     """
     if not isinstance(system_responses, list):
         system_responses = [system_responses]
-    
+
     n_responses = len(system_responses)
     if n_subplots is None:
         n_subplots = system_responses[0].shape[1] if len(system_responses[0].shape) > 1 else 1
-    
+
     # 设置默认值
     if time_vectors is None:
         time_vectors = [np.arange(len(resp)) for resp in system_responses]
     elif not isinstance(time_vectors, list):
         time_vectors = [time_vectors]
-    
+
     if titles is None:
         titles = [f'响应 {i+1}' for i in range(n_responses)]
-    
+
     if line_styles is None:
         line_styles = ['-'] * n_responses
-    
+
     if colors is None:
         colors = np.random.rand(n_responses, 3)
-    
+
+    # 判断哪些变量是角度（前4个为角度，后4个为角速度，默认只对前4个做角度/弧度转换）
+    angle_indices = [0, 1, 2, 3]
+
     plt.figure(figsize=figsize)
-    
+
     for i in range(n_subplots):
         plt.subplot(n_subplots, 1, i+1)
-        
+
         for j in range(n_responses):
             # 处理单变量情况
             if len(system_responses[j].shape) == 1:
                 y_data = system_responses[j]
             else:
                 y_data = system_responses[j][:, i]
-                
-            plt.plot(time_vectors[j], y_data, 
-                    linestyle=line_styles[j % len(line_styles)],
-                    color=colors[j % len(colors)],
-                    linewidth=1.5,
-                    label=titles[j])
-        
+
+            t_data = time_vectors[j]
+            # 检查长度是否一致
+            min_len = min(len(t_data), len(y_data))
+            if len(t_data) != len(y_data):
+                print(f"警告：第{j+1}组数据的 time_vector 和 system_response 长度不一致，已截断到最短长度({min_len})。")
+                t_data = t_data[:min_len]
+                y_data = y_data[:min_len]
+
+            # 角度制转换
+            if use_degree and i in angle_indices:
+                y_data = np.rad2deg(y_data)
+            # 标题单位自动补充
+            if i < len(subplot_titles):
+                if use_degree and i in angle_indices and "°" not in subplot_titles[i]:
+                    subplot_titles[i] = subplot_titles[i].replace("(theta", "(θ").replace(")", " (°)")
+                elif not use_degree and i in angle_indices and "(rad)" not in subplot_titles[i]:
+                    subplot_titles[i] = subplot_titles[i].replace("(theta", "(θ").replace(")", " (rad)")
+
+            plt.plot(t_data, y_data,
+                     linestyle=line_styles[j % len(line_styles)],
+                     color=colors[j % len(colors)],
+                     linewidth=1.5,
+                     label=titles[j])
+
         plt.grid(True)
         if i < len(subplot_titles):
             plt.title(subplot_titles[i])
         plt.legend()
-    
+
     plt.tight_layout()
     plt.show()
 
@@ -127,7 +150,7 @@ def plot_from_t_y_pairs(t_y_pairs_list,
                         figsize=(10, 8)):
     """
     在同一张图上绘制多组 (t, y) 数据对，支持每组数据有不同采样时间间隔。
-    
+
     参数:
     t_y_pairs_list -- 列表，每个元素为 (t, y)，t 是时间向量，y 是 shape=(n,) 或 (n,4) 的数组
     titles -- 每组响应数据的图例名称
@@ -138,53 +161,53 @@ def plot_from_t_y_pairs(t_y_pairs_list,
     """
     if not isinstance(t_y_pairs_list, list):
         raise ValueError("t_y_pairs_list 必须是一个列表，元素为 (t, y) 对。")
-    
+
     n_responses = len(t_y_pairs_list)
-    
+
     # 推断子图数量
     sample_y = t_y_pairs_list[0][1]
     if n_subplots is None:
         n_subplots = sample_y.shape[1] if len(sample_y.shape) > 1 else 1
-    
+
     if titles is None:
         titles = [f'响应 {i+1}' for i in range(n_responses)]
-    
+
     if line_styles is None:
         line_styles = ['-'] * n_responses
-    
+
     if colors is None:
         colors = [None] * n_responses  # 使用默认颜色
-    
+
     plt.figure(figsize=figsize)
-    
+
     for i in range(n_subplots):
         plt.subplot(n_subplots, 1, i+1)
-        
+
         for j, (t, y) in enumerate(t_y_pairs_list):
             if len(y.shape) == 1 or y.ndim == 1:
                 y_data = y
             else:
                 y_data = y[:, i]
-                
+
             plt.plot(t, y_data,
                      linestyle=line_styles[j % len(line_styles)],
                      color=colors[j % len(colors)] if colors[j % len(colors)] else None,
                      linewidth=1.5,
                      label=titles[j])
-        
+
         plt.grid(True)
         if i < len(subplot_titles):
             plt.title(subplot_titles[i])
         plt.legend()
-    
+
     plt.tight_layout()
     plt.show()
 
-    
+
 
 def simulate_and_plot(initial_state, time_vector, closed_loop_matrix, input_matrix, input_signal, output_matrix,render=False):
     """模拟闭环系统并绘制响应
-    
+
     参数:
     initial_state -- 初始状态向量 (numpy数组)
     time_vector -- 时间向量 (numpy数组)
@@ -199,20 +222,20 @@ def simulate_and_plot(initial_state, time_vector, closed_loop_matrix, input_matr
         system_response[i,:] = output_matrix @ state
         state = closed_loop_matrix @ state + input_matrix @ input_signal[:,i]
 
-    
+
     plot_system_outputs(system_response, time_vector)
     if render:
         from envsim.renderer import UnicycleRenderer
         render=UnicycleRenderer()
         render.playback_from_data(system_response, time_vector)
 
-def print_a_matrix(A, ax=None, cmap='viridis', annotate=True, fmt=".2f", 
+def print_a_matrix(A, ax=None, cmap='viridis', annotate=True, fmt=".2f",
                    title="Matrix Visualization", xlabel="Columns", ylabel="Rows"):
     need_show=False
     if ax is None:
         ax = plt.gca()
         need_show=True
-        
+
     im = ax.imshow(A, cmap=cmap, aspect='auto')
     plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
