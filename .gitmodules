@@ -1,0 +1,6 @@
+[submodule "submodules/stm32hal"]
+	path = submodules/stm32hal
+	url = git@github.com:3BPM/RLcontrol-stm32hal-wheeltecb585DP2.git
+[submodule "stm32hal"]
+	path = stm32hal
+	url = git@github.com:3BPM/RLcontrol-stm32hal-wheeltecb585DP2.git
